@@ -138,7 +138,8 @@ public class SQLExecutor {
         }
     }
 
-    private QueryResult applyProcessingMode(QueryResult raw) {
+    /** Package-private so the processing-mode arithmetic can be unit tested without a database. */
+    QueryResult applyProcessingMode(QueryResult raw) {
         if (processingMode == ProcessingMode.NONE) {
             firstRun = false;
             return raw;

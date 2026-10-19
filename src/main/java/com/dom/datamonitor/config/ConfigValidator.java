@@ -104,8 +104,10 @@ public class ConfigValidator {
                     // Check column bounds
                     int effectiveEnd = (loc.colEnd() == GridLocation.SPAN_ALL)
                         ? totalColumns : loc.colEnd();
-                    if (effectiveEnd > totalColumns) {
-                        errors.add(prefix + ".grid column " + effectiveEnd
+                    // colStart can exceed effectiveEnd for e.g. C4* on a 3-column dashboard
+                    int lastCol = Math.max(loc.colStart(), effectiveEnd);
+                    if (lastCol > totalColumns) {
+                        errors.add(prefix + ".grid column " + lastCol
                             + " exceeds settings.columns (" + totalColumns + ")");
                     }
                     // Check for duplicate cell occupation

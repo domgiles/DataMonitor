@@ -1,5 +1,6 @@
 <ivy-module version="2.0">
-    <info organisation="com.dom" module="new-data-monitor" revision="1.0.0"/>
+    <!-- No revision here: the version lives only in build.xml (project.version) -->
+    <info organisation="com.dom" module="new-data-monitor"/>
 
     <configurations>
         <conf name="compile"  description="Compile-time dependencies"/>
@@ -40,5 +41,11 @@
                     name="snakeyaml"
                     rev="2.3"
                     conf="compile->default"/>
+
+        <!-- JUnit 5: the console-standalone JAR bundles Jupiter API/engine and the launcher -->
+        <dependency org="org.junit.platform"
+                    name="junit-platform-console-standalone"
+                    rev="1.11.4"
+                    conf="test->default"/>
     </dependencies>
 </ivy-module>

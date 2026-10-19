@@ -8,6 +8,9 @@ import com.dom.datamonitor.ui.DashboardFrame;
 
 import javax.swing.*;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -28,7 +31,8 @@ public class DataMonitor {
     private static final Logger log = Logger.getLogger(DataMonitor.class.getName());
 
     private static final String DEFAULT_CONFIG = "datamonitor.yaml";
-    private static final String APP_VERSION    = "1.0.0";
+    /** Read from version.properties, which the build generates from build.xml's project.version. */
+    private static final String APP_VERSION    = loadVersion();
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -131,11 +135,22 @@ public class DataMonitor {
                 - title: "Tx/Sec"
                   grid: "R1,C1"          # R<row>,C<col|col1-col2|col*>
                   chartType: TEXT        # LINE|AREA|BAR|PIE|TEXT|TABLE
-                  processingMode: DIFFERENCE  # DIFFERENCE|NONE
+                  processingMode: DIFFERENCE  # NONE|DIFFERENCE|CHANGE_PER_MIN|CHANGE_PER_HOUR|CUMULATIVE_SINCE_START
                   sql: |
                     SELECT 'Transactions', sum(value)
                     FROM v$sysstat WHERE name = 'user commits'
             """);
+    }
+
+    private static String loadVersion() {
+        try (InputStream in = DataMonitor.class.getResourceAsStream("version.properties")) {
+            if (in == null) return "dev";
+            Properties props = new Properties();
+            props.load(in);
+            return props.getProperty("version", "dev");
+        } catch (IOException e) {
+            return "dev";
+        }
     }
 
     private static void die(String msg) {

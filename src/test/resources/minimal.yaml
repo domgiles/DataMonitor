@@ -1,0 +1,10 @@
+settings:
+  connection:
+    username: scott
+    password: tiger
+    connectString: //localhost/freepdb1
+qmodules:
+  - title: "Sessions"
+    grid: "R1,C1"
+    chartType: TEXT
+    sql: SELECT 'Sessions', count(*) FROM v$session

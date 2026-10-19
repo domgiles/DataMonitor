@@ -18,7 +18,15 @@
     <property name="dist.log.dir"    value="${dist.app.dir}/log"/>
     <property name="docs.dir"        value="docs"/>
     <property name="lib.dir"         value="lib"/>
-    <property name="tests.dir"       value="tests"/>
+
+    <!-- Test layout -->
+    <property name="test.src.dir"     value="src/test/java"/>
+    <property name="test.res.dir"     value="src/test/resources"/>
+    <property name="test.classes.dir" value="${build.dir}/test-classes"/>
+    <property name="test.reports.dir" value="${build.dir}/test-reports"/>
+
+    <!-- Config file used by 'ant run'; override with -Dconfig=/path/to/file.yaml -->
+    <property name="config"          value="datamonitor.yaml"/>
 
     <!-- Ivy bootstrap -->
     <property name="ivy.install.version" value="2.5.2"/>
@@ -57,17 +65,21 @@
         <pathelement location="${classes.dir}"/>
     </path>
 
+    <path id="test.classpath">
+        <fileset dir="${lib.dir}/test" includes="*.jar" erroronmissingdir="false"/>
+        <pathelement location="${classes.dir}"/>
+        <pathelement location="${test.classes.dir}"/>
+    </path>
+
     <!-- ==================== Core Targets ==================== -->
     <target name="init">
         <mkdir dir="${classes.dir}"/>
         <mkdir dir="${dist.dir}"/>
-        <mkdir dir="${tests.dir}"/>
     </target>
 
     <target name="clean" description="Remove all generated files">
         <delete dir="${build.dir}" quiet="true"/>
         <delete dir="${docs.dir}"  quiet="true"/>
-        <delete dir="${tests.dir}" quiet="true"/>
     </target>
 
     <target name="compile" depends="init,resolve" description="Compile source code">
@@ -85,14 +97,58 @@
         <copy todir="${classes.dir}" failonerror="false">
             <fileset dir="${res.dir}" includes="**/*" erroronmissingdir="false"/>
         </copy>
+        <!-- Single source of truth for the version: read by DataMonitor at runtime -->
+        <echo file="${classes.dir}/com/dom/datamonitor/version.properties">version=${project.version}${line.separator}</echo>
+    </target>
+
+    <!-- ==================== Tests ==================== -->
+    <target name="compile.test" depends="compile" description="Compile test sources">
+        <mkdir dir="${test.classes.dir}"/>
+        <javac srcdir="${test.src.dir}"
+               destdir="${test.classes.dir}"
+               classpathref="test.classpath"
+               release="17"
+               encoding="UTF-8"
+               debug="true"
+               fork="true"
+               includeantruntime="false">
+            <compilerarg value="-Xlint:deprecation"/>
+        </javac>
+        <copy todir="${test.classes.dir}" failonerror="false">
+            <fileset dir="${test.res.dir}" includes="**/*" erroronmissingdir="false"/>
+        </copy>
+    </target>
+
+    <target name="test" depends="compile.test" description="Run all unit tests; fails the build on any failure">
+        <mkdir dir="${test.reports.dir}"/>
+        <!-- JUnit Platform console launcher; exits non-zero if any test fails -->
+        <java classname="org.junit.platform.console.ConsoleLauncher"
+              classpathref="test.classpath"
+              fork="true"
+              failonerror="true">
+            <jvmarg value="-Djava.awt.headless=true"/>
+            <arg value="execute"/>
+            <arg value="--scan-classpath"/>
+            <arg value="${test.classes.dir}"/>
+            <arg value="--reports-dir=${test.reports.dir}"/>
+            <arg value="--details=tree"/>
+            <arg value="--disable-banner"/>
+        </java>
     </target>
 
     <target name="jar" depends="compile" description="Package application JAR">
         <mkdir dir="${dist.lib.dir}"/>
+        <!-- Class-Path lists the runtime JARs by file name; dist copies them alongside this JAR,
+             so 'java -jar lib/new-data-monitor.jar' works without a launcher -->
+        <pathconvert property="jar.class.path" pathsep=" ">
+            <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
+            <flattenmapper/>
+        </pathconvert>
         <jar destfile="${dist.lib.dir}/${project.name}.jar">
             <fileset dir="${classes.dir}"/>
             <manifest>
                 <attribute name="Main-Class"             value="${main.class}"/>
+                <attribute name="Class-Path"             value="${jar.class.path}"/>
                 <attribute name="Implementation-Title"   value="${project.name}"/>
                 <attribute name="Implementation-Version" value="${project.version}"/>
             </manifest>
@@ -178,7 +234,7 @@ java ^
             <jvmarg value="-Dawt.useSystemAAFontSettings=on"/>
             <jvmarg value="-Dswing.aatext=true"/>
             <arg value="-c"/>
-            <arg value="datamonitor.yaml"/>
+            <arg file="${config}"/>
         </java>
     </target>
 

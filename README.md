@@ -51,13 +51,13 @@ settings:
 
 | Key            | Default | Description                                          |
 |----------------|---------|------------------------------------------------------|
-| `title`        | –       | Window title bar text                                |
+| `title`        | `Data Monitor` | Window title bar text                         |
 | `theme`        | `dark`  | `dark` or `light`                                    |
-| `refreshRate`  | `3`     | Global query interval in seconds (overridable per QModule) |
+| `refreshRate`  | `5`     | Global query interval in seconds (overridable per QModule) |
 | `windowSize`   | `120`   | Seconds of history shown on LINE and AREA charts     |
 | `columns`      | `3`     | Dashboard grid columns (1–3)                         |
-| `border`       | `6`     | Pixel gap between QModule panels                     |
-| `flashOnChange`| `false` | Flash TEXT tiles when their value changes            |
+| `border`       | `8`     | Pixel gap between QModule panels                     |
+| `flashOnChange`| `true`  | Flash TEXT tiles when their value changes            |
 
 ### QModules
 
@@ -155,4 +155,12 @@ The launcher passes `bin/datamonitor.yaml` automatically. To use a different con
 ```sh
 ./bin/datamonitor -c /path/to/other.yaml
 ```
+
+The application JAR can also be started directly; it finds its dependencies in the same `lib/` folder:
+
+```sh
+java -jar lib/new-data-monitor.jar -c bin/datamonitor.yaml
+```
+
+Other options: `--theme dark|light` overrides the configured theme, `--version` prints the version, `-h` shows help.
 
