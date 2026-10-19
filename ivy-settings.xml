@@ -1,0 +1,15 @@
+<ivysettings>
+    <settings defaultResolver="chain"/>
+    <resolvers>
+        <chain name="chain">
+            <!-- Local filesystem cache (fastest) -->
+            <filesystem name="local-cache">
+                <artifact pattern="${ivy.default.root}/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"/>
+                <ivy pattern="${ivy.default.root}/[organisation]/[module]/[revision]/[module]-[revision].xml"/>
+            </filesystem>
+            <!-- Maven Central -->
+            <ibiblio name="maven-central" m2compatible="true"
+                     root="https://repo1.maven.org/maven2/"/>
+        </chain>
+    </resolvers>
+</ivysettings>

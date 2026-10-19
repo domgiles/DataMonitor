@@ -1,0 +1,225 @@
+##
+## New Data Monitor - Sample Configuration
+##
+## Grid spec format:
+##   R<row>,C<col>       e.g. R1,C1    → row 1, column 1
+##   R<row>,C<col1-col2> e.g. R2,C1-2  → row 2, spanning columns 1 and 2
+##   R<row>,C<col>*      e.g. R1,C1*   → row 1, spanning all columns
+##
+## SQL result format (per row):
+##   Duplet:  SELECT 'label',       value  FROM ...
+##   Triplet: SELECT 'label', 'colour', value  FROM ...   (colour before value)
+##   Multiple series: use UNION ALL to return one row per series.
+##
+
+settings:
+  title: "Oracle DB Monitor"
+  theme: dark          # dark | light
+  refreshRate: 3       # global default refresh interval (seconds)
+  windowSize: 120      # default X-axis window for LINE/AREA charts (seconds)
+  border: 6            # gap in pixels between QModules
+  columns: 3           # number of dashboard columns (1–3)
+  flashOnChange: false  # flash glow ring on TEXT tiles when value changes (true | false)
+  connection:
+    username: system
+    password: welcome1      # or enc:<base64-encoded-password>
+    connectString: //localhost/soe        # TNS alias or //host:port/service
+    # credentialsFile: /path/to/wallet   # ADB only
+
+qmodules:
+
+  ## ── Row 1: KPI tiles ──────────────────────────────────────────────────────
+
+  - title: "Tx/Sec"
+    grid: "R1,C1"
+    chartType: TEXT
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    sql: |
+      SELECT 'Tx/Sec', sum(value)
+      FROM v$sysstat
+      WHERE name = 'user commits'
+
+  - title: "Active Sessions"
+    grid: "R1,C2"
+    chartType: TEXT
+    processingMode: NONE
+    refreshRate: 2
+    sql: |
+      SELECT 'Active Sessions', count(*)
+      FROM v$session
+      WHERE status = 'ACTIVE' AND type = 'USER'
+
+  - title: "Checkpoints Since Start"
+    grid: "R1,C3"
+    chartType: TEXT
+    processingMode: CUMULATIVE_SINCE_START
+    refreshRate: 2
+    sql: |
+      SELECT 'Checkpoints Since Start', sum(value)
+      FROM v$sysstat
+      WHERE name = 'checkpoints started'
+
+  ## ── Row 2: I/O breakdown (spans all 3 columns) ────────────────────────────
+
+  - title: "I/O by File Type (MB/sec)"
+    grid: "R2,C1*"
+    chartType: AREA
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    windowSize: 120
+    divideBy: 1048576
+    sql: |
+      SELECT 'Small Read MB/sec',  'red',    sum(small_read_megabytes),
+             'Small Write MB/sec', 'blue',   sum(small_write_megabytes),
+             'Large Read MB/sec',  'yellow', sum(large_read_megabytes),
+             'Large Write MB/sec', 'green',  sum(large_write_megabytes)
+      FROM v$iostat_file
+      WHERE filetype_name = 'Data File'
+
+  ## ── Row 3: Time model + IOPs ──────────────────────────────────────────────
+
+  - title: "Time Waited by Class (cs)"
+    grid: "R3,C1-2"
+    chartType: AREA
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    windowSize: 120
+    sql: |
+      SELECT v$system_event.wait_class,
+                  case
+                      when v$system_event.wait_class = 'Scheduler' then 'Light Green'
+                      when v$system_event.wait_class = 'User I/O' then 'Blue'
+                      when v$system_event.wait_class = 'System I/O' then 'Cyan'
+                      when v$system_event.wait_class = 'Concurrency' then 'Dark Red'
+                      when v$system_event.wait_class = 'Application' then 'Red'
+                      when v$system_event.wait_class = 'Commit' then 'Orange'
+                      when v$system_event.wait_class = 'Configuration' then 'Brown'
+                      when v$system_event.wait_class = 'Administrative' then 'Light Brown'
+                      when v$system_event.wait_class = 'Network' then 'Gray Brown'
+                      when v$system_event.wait_class = 'Queueing' then 'Light Gray Brown'
+                      when v$system_event.wait_class = 'Other' then 'Pink'
+                      else 'Green'
+                  end color,
+                  SUM(v$system_event.time_waited)
+                FROM v$system_event
+                WHERE wait_class != 'Idle'
+                GROUP BY v$system_event.wait_class
+                union
+                select 'CPU', 'Green', value/10000 value from V$sys_time_model where stat_name = 'DB CPU'
+  - title: "IOPs"
+    grid: "R5,C1"
+    chartType: LINE
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    windowSize: 120
+    sql: |
+      SELECT 'IOPs',      'orange',     nvl(sum(a.phyrds + a.phywrts), 0)
+      FROM sys.gv_$filestat a
+      UNION ALL
+      SELECT 'IOPs Temp', 'light gray', nvl(sum(b.phyrds + b.phywrts), 0)
+      FROM sys.gv_$tempstat b
+
+  ## ── Row 4: Redo + Commits ─────────────────────────────────────────────────
+
+  - title: "Redo (MB/sec)"
+    grid: "R4,C1"
+    chartType: LINE
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    windowSize: 120
+    divideBy: 1048576
+    sql: |
+      SELECT 'Redo MB/sec', 'blue', sum(value)
+      FROM gv$sysstat
+      WHERE name = 'redo size'
+
+  - title: "Commits vs Rollbacks"
+    grid: "R4,C2"
+    chartType: BAR
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    sql: |
+      SELECT 'User Commits',   'orange',     sum(value) FROM gv$sysstat WHERE name = 'user commits'
+      UNION ALL
+      SELECT 'User Rollbacks', 'light gray', sum(value) FROM gv$sysstat WHERE name = 'user rollbacks'
+
+  - title: "Physical I/O (MB/sec)"
+    grid: "R4,C3"
+    chartType: BAR
+    processingMode: DIFFERENCE
+    refreshRate: 2
+    divideBy: 1048576
+    sql: |
+      SELECT 'Physical Reads',  'green', sum(value) FROM gv$sysstat WHERE name = 'physical read bytes'
+      UNION ALL
+      SELECT 'Physical Writes', 'red',   sum(value) FROM gv$sysstat WHERE name = 'physical write bytes'
+
+  ## ── Row 5: Wait event pie + top SQL table ────────────────────────────────
+
+  - title: "Wait Class Distribution"
+    grid: "R3,C3"
+    chartType: PIE
+    processingMode: DIFFERENCE
+    refreshRate: 5
+    sql: |
+      SELECT v$system_event.wait_class,
+                  case
+                      when v$system_event.wait_class = 'Scheduler' then 'Light Green'
+                      when v$system_event.wait_class = 'User I/O' then 'Blue'
+                      when v$system_event.wait_class = 'System I/O' then 'Cyan'
+                      when v$system_event.wait_class = 'Concurrency' then 'Dark Red'
+                      when v$system_event.wait_class = 'Application' then 'Red'
+                      when v$system_event.wait_class = 'Commit' then 'Orange'
+                      when v$system_event.wait_class = 'Configuration' then 'Brown'
+                      when v$system_event.wait_class = 'Administrative' then 'Light Brown'
+                      when v$system_event.wait_class = 'Network' then 'Gray Brown'
+                      when v$system_event.wait_class = 'Queueing' then 'Light Gray Brown'
+                      when v$system_event.wait_class = 'Other' then 'Pink'
+                      else 'Green'
+                  end color,
+                  SUM(v$system_event.time_waited)
+                FROM v$system_event
+                WHERE wait_class != 'Idle'
+                GROUP BY v$system_event.wait_class
+                union
+                select 'CPU', 'Green', value/10000 value from V$sys_time_model where stat_name = 'DB CPU'
+
+  - title: "Top DB Parameters"
+    grid: "R5,C2-3"
+    chartType: TABLE
+    processingMode: NONE
+    refreshRate: 30
+    sql: |
+      SELECT name, 'green', value
+      FROM v$parameter
+      WHERE name IN (
+        'db_block_size', 'sga_target', 'pga_aggregate_target',
+        'cpu_count',     'max_string_size', 'optimizer_mode'
+      )
+      ORDER BY name
+
+  ## ── Row 6: Checkpoint counters (new processing mode examples) ─────────────
+
+  - title: "Checkpoints/Hour"
+    comment: "CHANGE_PER_HOUR: extrapolated rate – best for medium-frequency counters"
+    grid: "R6,C1"
+    chartType: LINE
+    processingMode: CHANGE_PER_HOUR
+    refreshRate: 10
+    windowSize: 300
+    sql: |
+      SELECT 'Background Checkpoints', value
+      FROM v$sysstat
+      WHERE name = 'background checkpoints completed'
+
+  - title: "Checkpoints Since Start"
+    comment: "CUMULATIVE_SINCE_START: total since dashboard launched – best for slow/rare counters"
+    grid: "R6,C2"
+    chartType: TEXT
+    processingMode: CUMULATIVE_SINCE_START
+    refreshRate: 10
+    sql: |
+      SELECT 'Checkpoints', value
+      FROM v$sysstat
+      WHERE name = 'background checkpoints completed'

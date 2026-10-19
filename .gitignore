@@ -1,0 +1,17 @@
+# Reference copy of the previous application – never commit
+/Old Version of the Application/
+
+# Build output
+/build/
+/docs/
+/datamonitor*.zip
+
+# Ivy-managed dependencies and bootstrap jar
+/lib/
+/ivy/
+
+# IDE / OS / local tool settings
+/.idea/
+*.iml
+.DS_Store
+/.claude/settings.local.json

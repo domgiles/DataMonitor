@@ -1,0 +1,44 @@
+<ivy-module version="2.0">
+    <info organisation="com.dom" module="new-data-monitor" revision="1.0.0"/>
+
+    <configurations>
+        <conf name="compile"  description="Compile-time dependencies"/>
+        <!-- runtime extends compile so runtime JARs are also on the compile classpath -->
+        <conf name="runtime"  description="Runtime-only dependencies" extends="compile"/>
+        <conf name="test"     description="Test-only dependencies"    extends="compile"/>
+    </configurations>
+
+    <dependencies>
+        <!--
+            Oracle JDBC Thin Driver – ojdbc17 targets JDK 17+.
+            Version 23.26.x corresponds to the Oracle 26ai driver release on Maven Central.
+        -->
+        <dependency org="com.oracle.database.jdbc"
+                    name="ojdbc17"
+                    rev="23.26.0.0.0"
+                    conf="compile->default"/>
+
+        <!-- Oracle Universal Connection Pool (JDK-17 build) -->
+        <dependency org="com.oracle.database.jdbc"
+                    name="ucp17"
+                    rev="23.26.0.0.0"
+                    conf="compile->default"/>
+
+        <!--
+            Oracle PKI library for Autonomous Database wallet / mTLS connections.
+            Only needed when credentialsFile is set in the connection config.
+            osdt_core and osdt_cert are bundled inside ojdbc17 from 23ai onwards,
+            so only oraclepki is required as a separate dependency.
+        -->
+        <dependency org="com.oracle.database.security"
+                    name="oraclepki"
+                    rev="23.26.0.0.0"
+                    conf="runtime->default"/>
+
+        <!-- YAML configuration parsing -->
+        <dependency org="org.yaml"
+                    name="snakeyaml"
+                    rev="2.3"
+                    conf="compile->default"/>
+    </dependencies>
+</ivy-module>

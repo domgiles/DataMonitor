@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="new-data-monitor" default="compile" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
+
+    <!-- ==================== Project Properties ==================== -->
+    <property name="project.name"    value="new-data-monitor"/>
+    <property name="project.version" value="1.0.0"/>
+    <property name="main.class"      value="com.dom.datamonitor.DataMonitor"/>
+
+    <!-- Directory layout -->
+    <property name="src.dir"         value="src/main/java"/>
+    <property name="res.dir"         value="src/main/resources"/>
+    <property name="build.dir"       value="build"/>
+    <property name="classes.dir"     value="${build.dir}/classes"/>
+    <property name="dist.dir"        value="${build.dir}/dist"/>
+    <property name="dist.app.dir"    value="${dist.dir}/datamonitor"/>
+    <property name="dist.lib.dir"    value="${dist.app.dir}/lib"/>
+    <property name="dist.bin.dir"    value="${dist.app.dir}/bin"/>
+    <property name="dist.log.dir"    value="${dist.app.dir}/log"/>
+    <property name="docs.dir"        value="docs"/>
+    <property name="lib.dir"         value="lib"/>
+    <property name="tests.dir"       value="tests"/>
+
+    <!-- Ivy bootstrap -->
+    <property name="ivy.install.version" value="2.5.2"/>
+    <property name="ivy.jar.dir"         value="${basedir}/ivy"/>
+    <property name="ivy.jar.file"        value="${ivy.jar.dir}/ivy-${ivy.install.version}.jar"/>
+
+    <!-- ==================== Ivy Bootstrap ==================== -->
+    <target name="download-ivy">
+        <mkdir dir="${ivy.jar.dir}"/>
+        <get src="https://repo1.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar"
+             dest="${ivy.jar.file}" usetimestamp="true" skipexisting="true"/>
+    </target>
+
+    <target name="install-ivy" depends="download-ivy" description="Install Ivy">
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant"
+                 classpathref="ivy.lib.path"/>
+    </target>
+
+    <target name="resolve" depends="install-ivy" description="Resolve dependencies">
+        <ivy:resolve/>
+        <ivy:retrieve pattern="${lib.dir}/[conf]/[artifact]-[revision].[ext]" sync="true"/>
+    </target>
+
+    <!-- ==================== Classpaths ==================== -->
+    <path id="compile.classpath">
+        <fileset dir="${lib.dir}/compile" includes="*.jar" erroronmissingdir="false"/>
+    </path>
+
+    <path id="runtime.classpath">
+        <path refid="compile.classpath"/>
+        <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
+        <pathelement location="${classes.dir}"/>
+    </path>
+
+    <!-- ==================== Core Targets ==================== -->
+    <target name="init">
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+        <mkdir dir="${tests.dir}"/>
+    </target>
+
+    <target name="clean" description="Remove all generated files">
+        <delete dir="${build.dir}" quiet="true"/>
+        <delete dir="${docs.dir}"  quiet="true"/>
+        <delete dir="${tests.dir}" quiet="true"/>
+    </target>
+
+    <target name="compile" depends="init,resolve" description="Compile source code">
+        <javac srcdir="${src.dir}"
+               destdir="${classes.dir}"
+               classpathref="compile.classpath"
+               source="17" target="17" release="17"
+               encoding="UTF-8"
+               debug="true"
+               fork="true"
+               includeantruntime="false">
+            <compilerarg value="-Xlint:deprecation"/>
+        </javac>
+        <!-- Copy resources into classes -->
+        <copy todir="${classes.dir}" failonerror="false">
+            <fileset dir="${res.dir}" includes="**/*" erroronmissingdir="false"/>
+        </copy>
+    </target>
+
+    <target name="jar" depends="compile" description="Package application JAR">
+        <mkdir dir="${dist.lib.dir}"/>
+        <jar destfile="${dist.lib.dir}/${project.name}.jar">
+            <fileset dir="${classes.dir}"/>
+            <manifest>
+                <attribute name="Main-Class"             value="${main.class}"/>
+                <attribute name="Implementation-Title"   value="${project.name}"/>
+                <attribute name="Implementation-Version" value="${project.version}"/>
+            </manifest>
+        </jar>
+    </target>
+
+    <target name="dist" depends="clean,jar" description="Full distribution build">
+        <!-- Copy all runtime JARs into lib -->
+        <copy todir="${dist.lib.dir}" failonerror="false">
+            <fileset dir="${lib.dir}/compile" includes="*.jar" erroronmissingdir="false"/>
+            <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
+        </copy>
+
+        <!-- Create log directory placeholder -->
+        <mkdir dir="${dist.log.dir}"/>
+        <touch file="${dist.log.dir}/.gitkeep"/>
+
+        <!-- Create bin directory and launcher scripts -->
+        <mkdir dir="${dist.bin.dir}"/>
+
+        <echo file="${dist.bin.dir}/datamonitor">#!/bin/sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" &amp;&amp; pwd)"
+APP_HOME="$(dirname "$SCRIPT_DIR")"
+
+exec java \
+    -Dawt.useSystemAAFontSettings=on \
+    -Dswing.aatext=true \
+    -Dlog.dir="${APP_HOME}/log" \
+    -cp "${APP_HOME}/lib/*" \
+    com.dom.datamonitor.DataMonitor \
+    -c "${SCRIPT_DIR}/datamonitor.yaml" \
+    "$@"
+</echo>
+
+        <echo file="${dist.bin.dir}/datamonitor.bat">@echo off
+set SCRIPT_DIR=%~dp0
+set APP_HOME=%SCRIPT_DIR%..
+
+java ^
+    -Dawt.useSystemAAFontSettings=on ^
+    -Dswing.aatext=true ^
+    -Dlog.dir="%APP_HOME%\log" ^
+    -cp "%APP_HOME%\lib\*" ^
+    com.dom.datamonitor.DataMonitor ^
+    -c "%SCRIPT_DIR%datamonitor.yaml" ^
+    %*
+</echo>
+
+        <!-- Make Unix launcher executable -->
+        <chmod file="${dist.bin.dir}/datamonitor" perm="755"/>
+
+        <!-- Copy sample config and README into bin alongside the launchers -->
+        <copy todir="${dist.bin.dir}" failonerror="false">
+            <fileset dir="${basedir}" includes="datamonitor.yaml"/>
+        </copy>
+        <copy file="${basedir}/README.md" todir="${dist.app.dir}" failonerror="false"/>
+
+        <echo message=""/>
+        <echo message="Distribution ready in ${dist.app.dir}/"/>
+        <echo message="  bin/datamonitor      – Unix/macOS launcher"/>
+        <echo message="  bin/datamonitor.bat  – Windows launcher"/>
+        <echo message="  bin/datamonitor.yaml – configuration (edit before running)"/>
+        <echo message="  lib/                 – application and dependency JARs"/>
+        <echo message="  log/                 – log output directory"/>
+    </target>
+
+    <target name="zip" depends="dist" description="Create dated distribution zip (datamonitorDDMMYYYY.zip)">
+        <tstamp>
+            <format property="dist.date" pattern="ddMMyyyy"/>
+        </tstamp>
+        <zip destfile="${basedir}/datamonitor${dist.date}.zip">
+            <zipfileset dir="${dist.dir}" includes="datamonitor/**"
+                        excludes="datamonitor/bin/datamonitor" filemode="644" dirmode="755"/>
+            <zipfileset dir="${dist.dir}" includes="datamonitor/bin/datamonitor" filemode="755"/>
+        </zip>
+        <echo message="Archive: ${basedir}/datamonitor${dist.date}.zip"/>
+    </target>
+
+    <target name="run" depends="compile" description="Run the application">
+        <java classname="${main.class}"
+              classpathref="runtime.classpath"
+              fork="true">
+            <jvmarg value="-Dawt.useSystemAAFontSettings=on"/>
+            <jvmarg value="-Dswing.aatext=true"/>
+            <arg value="-c"/>
+            <arg value="datamonitor.yaml"/>
+        </java>
+    </target>
+
+    <target name="docs" depends="compile" description="Generate JavaDoc">
+        <mkdir dir="${docs.dir}"/>
+        <javadoc sourcepath="${src.dir}"
+                 destdir="${docs.dir}"
+                 classpathref="compile.classpath"
+                 source="17"
+                 encoding="UTF-8"
+                 windowtitle="${project.name} ${project.version}"
+                 failonerror="false"/>
+    </target>
+
+    <target name="all" depends="clean,compile,jar" description="Full build: clean → compile → jar"/>
+
+</project>
