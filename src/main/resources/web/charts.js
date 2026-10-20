@@ -45,6 +45,15 @@ export function formatCompact(v) {
   return abs > 0 && abs < 10 ? smallFmt.format(v) : v.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
+/** {@code #rrggbb} moved {@code amount} (0–1) of the way towards black. */
+function darken(hex, amount) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const ch = (shift) => Math.round(((n >> shift) & 255) * (1 - amount)).toString(16).padStart(2, '0');
+  return `#${ch(16)}${ch(8)}${ch(0)}`;
+}
+
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -307,7 +316,9 @@ export class Card {
       return stacked ? {
         name: key, type: 'line', stack: 'total', data, color: colour,
         showSymbol: false, symbolSize: 8,
-        lineStyle: { width: 1.5, color: t.surface },          // 2px-ish surface gap between bands
+        // Edge each band in a darker shade of its own colour (dark red on red …). A series
+        // that has been zero all window gets no edge: it would only overdraw the band below.
+        lineStyle: { width: data.some(([, v]) => v) ? 1.5 : 0, color: darken(colour, 0.4) },
         areaStyle: { color: colour, opacity: t.theme === 'dark' ? 0.82 : 0.75 },
         emphasis: { focus: 'series' },
       } : {
