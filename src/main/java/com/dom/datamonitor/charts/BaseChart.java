@@ -4,11 +4,21 @@ import com.dom.datamonitor.model.QueryResult;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -33,11 +43,36 @@ public abstract class BaseChart extends JPanel {
     /** True while waiting for the first successful result. */
     private volatile boolean connecting = true;
 
+    /** Pointer x while it is over the chart, or -1; drives the hover readout on time series. */
+    private int hoverX = -1;
+
+    private static final DateTimeFormatter HOVER_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
+
     protected BaseChart(Theme theme) {
         this.theme = theme;
         setBackground(theme.chartBackground);
         setOpaque(true);
+
+        MouseAdapter hover = new MouseAdapter() {
+            @Override public void mouseMoved(MouseEvent e)   { setHoverX(e.getX()); }
+            @Override public void mouseDragged(MouseEvent e) { setHoverX(e.getX()); }
+            @Override public void mouseExited(MouseEvent e)  { setHoverX(-1); }
+        };
+        addMouseListener(hover);
+        addMouseMotionListener(hover);
     }
+
+    private void setHoverX(int x) {
+        if (x == hoverX) return;
+        hoverX = x;
+        if (showsHover()) repaint();
+    }
+
+    /** Whether this chart draws a hover readout; only repaints on pointer moves when it does. */
+    protected boolean showsHover() { return false; }
+
+    /** Pointer x while it is over the chart, or -1. */
+    protected int hoverX() { return hoverX; }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Public API
@@ -172,13 +207,138 @@ public abstract class BaseChart extends JPanel {
         }
         NumberFormat f = NumberFormat.getNumberInstance(locale);
         f.setRoundingMode(RoundingMode.HALF_UP);   // like the browser: 512.5 → 513, not 512
-        if (abs > 0 && abs < 1) {
-            // Three significant digits: 0.00412, 0.125
-            f.setMaximumFractionDigits(Math.max(0, 2 - (int) Math.floor(Math.log10(abs))));
-            return f.format(new BigDecimal(value).round(new MathContext(3, RoundingMode.HALF_UP)));
-        }
+        if (abs > 0 && abs < 1) return formatSignificant(value, abs, locale);   // 0.00412, 0.125
         f.setMaximumFractionDigits(abs == 0 || abs >= 100 ? 0 : abs >= 10 ? 1 : 2);
         return f.format(value);
+    }
+
+    /**
+     * Short value for axis labels, with the same rules as the web front end's
+     * {@code formatCompact}: 0 · 0.002 · 2.5 · 300 · 12K · 3.4M.
+     */
+    protected static String formatCompact(double value) {
+        return formatCompact(value, Locale.getDefault());
+    }
+
+    static String formatCompact(double value, Locale locale) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) return "–";
+        double abs = Math.abs(value);
+        if (abs >= 1000) {
+            NumberFormat compact = NumberFormat.getCompactNumberInstance(locale, NumberFormat.Style.SHORT);
+            compact.setMaximumFractionDigits(1);
+            compact.setRoundingMode(RoundingMode.HALF_UP);
+            return compact.format(value);
+        }
+        if (abs > 0 && abs < 10) return formatSignificant(value, abs, locale);
+        NumberFormat f = NumberFormat.getNumberInstance(locale);
+        f.setMaximumFractionDigits(0);
+        f.setRoundingMode(RoundingMode.HALF_UP);
+        return f.format(value);
+    }
+
+    /** Three significant digits: 0.00412, 2.5. */
+    private static String formatSignificant(double value, double abs, Locale locale) {
+        NumberFormat f = NumberFormat.getNumberInstance(locale);
+        f.setMaximumFractionDigits(Math.max(0, 2 - (int) Math.floor(Math.log10(abs))));
+        return f.format(new BigDecimal(value).round(new MathContext(3, RoundingMode.HALF_UP)));
+    }
+
+    /**
+     * Axis ticks from 0 with a round step (1, 2, 2.5 or 5 × a power of ten), aiming for about
+     * four intervals, like the web charts: a maximum of 370 gives 0, 100, 200, 300, 400.
+     * The last tick is the axis maximum (always &gt;= {@code max}).
+     */
+    static double[] niceTicks(double max) {
+        if (!(max > 0) || Double.isInfinite(max)) max = 1;
+        double rough = max / 4;
+        double mag   = Math.pow(10, Math.floor(Math.log10(rough)));
+        double r     = rough / mag;
+        double step  = (r <= 1 ? 1 : r <= 2 ? 2 : r <= 2.5 ? 2.5 : r <= 5 ? 5 : 10) * mag;
+        int    count = (int) Math.ceil(max / step - 1e-9);
+        double[] ticks = new double[count + 1];
+        for (int i = 0; i <= count; i++) ticks[i] = i * step;
+        return ticks;
+    }
+
+    /**
+     * Draws the hover readout for a time series: a vertical guide at {@code x}, a dot on each
+     * series and a box with the time and each series' value (plus a total when stacked), laid
+     * out like the web tooltip. The box sits beside the guide, flipping sides near the edge.
+     */
+    protected void drawHoverReadout(Graphics2D g2, int w, int plotY, int plotH, float x, long time,
+                                    List<String> names, List<Color> colors, List<Double> values,
+                                    List<Float> dotYs, boolean stacked) {
+        Color guide = theme.axisForeground;
+        g2.setColor(new Color(guide.getRed(), guide.getGreen(), guide.getBlue(), 160));
+        g2.setStroke(new BasicStroke(1f));
+        g2.draw(new Line2D.Float(x, plotY, x, plotY + plotH));
+        for (int i = 0; i < dotYs.size(); i++) {
+            g2.setColor(theme.chartBackground);
+            g2.fill(new Ellipse2D.Float(x - 5, dotYs.get(i) - 5, 10, 10));
+            g2.setColor(colors.get(i));
+            g2.fill(new Ellipse2D.Float(x - 3.5f, dotYs.get(i) - 3.5f, 7, 7));
+        }
+
+        // Box contents
+        Font  labelFont = theme.legendFont;
+        Font  valueFont = new Font(Font.MONOSPACED, Font.BOLD, labelFont.getSize());
+        FontMetrics lfm = g2.getFontMetrics(labelFont), vfm = g2.getFontMetrics(valueFont);
+        String header = HOVER_TIME.format(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()));
+        List<String> shown = new ArrayList<>();
+        double total = 0;
+        int valueW = 0, nameW = lfm.stringWidth(header) - 20;
+        for (int i = 0; i < names.size(); i++) {
+            String v = formatValue(values.get(i));
+            shown.add(v);
+            total += values.get(i);
+            valueW = Math.max(valueW, vfm.stringWidth(v));
+            nameW  = Math.max(nameW, lfm.stringWidth(names.get(i)));
+        }
+        boolean showTotal = stacked && names.size() > 1;
+        String totalText = formatValue(total);
+        if (showTotal) valueW = Math.max(valueW, vfm.stringWidth(totalText));
+
+        int line = Math.max(lfm.getHeight(), vfm.getHeight()) + 2;
+        int pad = 8, swatch = 12;
+        int boxW = pad + swatch + 8 + valueW + 10 + nameW + pad;
+        int boxH = pad + line * (1 + names.size() + (showTotal ? 1 : 0)) + (showTotal ? 4 : 0) + pad - 2;
+        float bx = (x + 14 + boxW <= w - 4) ? x + 14 : x - 14 - boxW;
+        bx = Math.max(4, bx);
+        float by = Math.max(4, Math.min(plotY + 4, getHeight() - boxH - 4));
+
+        Color bg = theme.background, edge = theme.gridLine;
+        g2.setColor(new Color(bg.getRed(), bg.getGreen(), bg.getBlue(), 235));
+        g2.fill(new RoundRectangle2D.Float(bx, by, boxW, boxH, 10, 10));
+        g2.setColor(edge);
+        g2.draw(new RoundRectangle2D.Float(bx, by, boxW, boxH, 10, 10));
+
+        float ty = by + pad + lfm.getAscent();
+        g2.setFont(labelFont);
+        g2.setColor(theme.axisForeground);
+        g2.drawString(header, bx + pad, ty);
+        for (int i = 0; i < names.size(); i++) {
+            ty += line;
+            g2.setColor(colors.get(i));
+            g2.fill(new RoundRectangle2D.Float(bx + pad, ty - lfm.getAscent() / 2f - 1, swatch, 3, 2, 2));
+            g2.setFont(valueFont);
+            g2.setColor(theme.foreground);
+            g2.drawString(shown.get(i), bx + pad + swatch + 8, ty);
+            g2.setFont(labelFont);
+            g2.setColor(theme.axisForeground);
+            g2.drawString(names.get(i), bx + pad + swatch + 8 + valueW + 10, ty);
+        }
+        if (showTotal) {
+            ty += 4;
+            g2.setColor(edge);
+            g2.draw(new Line2D.Float(bx + pad, ty + lfm.getDescent(), bx + boxW - pad, ty + lfm.getDescent()));
+            ty += line;
+            g2.setFont(valueFont);
+            g2.setColor(theme.foreground);
+            g2.drawString(totalText, bx + pad + swatch + 8, ty);
+            g2.setFont(labelFont);
+            g2.setColor(theme.axisForeground);
+            g2.drawString("Total", bx + pad + swatch + 8 + valueW + 10, ty);
+        }
     }
 
     /** Inner padding for plot area (pixels). */

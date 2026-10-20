@@ -12,8 +12,9 @@ import java.util.List;
  * Time-series line chart that displays multiple series over a rolling time window.
  *
  * <p>Each series is rendered as a smooth anti-aliased line with a gradient glow.
- * The Y-axis auto-scales to the maximum value in the current window.
- * The X-axis shows elapsed time from (now − windowSize) to now.
+ * The Y-axis auto-scales to the maximum value in the current window, rounded up to a round
+ * step (see {@link BaseChart#niceTicks}). The X-axis shows elapsed time from (now − windowSize)
+ * to now. Hovering shows a guide line and the values at that point.
  *
  * <p>Up to {@code maxPoints} data points are kept per series (windowSize / refreshRate).
  */
@@ -29,7 +30,11 @@ public class LineChart extends BaseChart {
     /** Circular data store: seriesKey → deque of values (oldest first). */
     private final Map<String, ArrayDeque<Double>> data = new LinkedHashMap<>();
 
-    private double maxY = 1.0;
+    /** When each point was read (epoch ms), aligned with {@link #data}; 0 for the padding. */
+    private final ArrayDeque<Long> times = new ArrayDeque<>();
+
+    private double   maxY  = 1.0;
+    private double[] ticks = niceTicks(1.0);
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -56,7 +61,10 @@ public class LineChart extends BaseChart {
                 for (int j = 0; j < maxPoints; j++) deque.add(0.0);
                 data.put(row.key(), deque);
             }
+            for (int j = 0; j < maxPoints; j++) times.add(0L);
         }
+        if (times.size() >= maxPoints) times.pollFirst();
+        times.addLast(System.currentTimeMillis());
 
         // Push new values
         maxY = 1.0;
@@ -70,6 +78,8 @@ public class LineChart extends BaseChart {
                 for (double v : deque) maxY = Math.max(maxY, v);
             }
         }
+        ticks = niceTicks(maxY);
+        maxY  = ticks[ticks.length - 1];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -104,6 +114,29 @@ public class LineChart extends BaseChart {
         drawYAxis(g2, plotX, plotY, plotH);
         drawXAxisLabel(g2, plotX, plotY, plotW, plotH, h);
         drawLegend(g2, w, pt);
+        drawHover(g2, w, plotX, plotY, plotW, plotH);
+    }
+
+    @Override protected boolean showsHover() { return true; }
+
+    /** Guide line and readout at the reading nearest the pointer (none over the empty padding). */
+    private void drawHover(Graphics2D g2, int w, int px, int py, int pw, int ph) {
+        int hx = hoverX();
+        int n  = times.size();
+        if (hx < px || hx > px + pw || n < 2) return;
+        int i = Math.round((hx - px) / ((float) pw / (n - 1)));
+        long time = times.stream().skip(i).findFirst().orElse(0L);
+        if (time == 0) return;
+
+        float x = px + i * ((float) pw / (n - 1));
+        List<Double> values = new ArrayList<>();
+        List<Float>  dots   = new ArrayList<>();
+        for (String key : seriesKeys) {
+            double v = data.get(key).stream().skip(i).findFirst().orElse(0.0);
+            values.add(v);
+            dots.add(Math.max(py, Math.min(py + ph, (float) (py + ph - (v / maxY) * ph))));
+        }
+        drawHoverReadout(g2, w, py, ph, x, time, seriesKeys, seriesColors, values, dots, false);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -115,9 +148,8 @@ public class LineChart extends BaseChart {
         Stroke dashed = new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND,
             1f, new float[]{4f, 4f}, 0f);
         g2.setStroke(dashed);
-        int gridLines = 4;
-        for (int i = 0; i <= gridLines; i++) {
-            int y = py + ph - (int) ((double) i / gridLines * ph);
+        for (double tick : ticks) {
+            int y = py + ph - (int) (tick / maxY * ph);
             g2.drawLine(px, y, px + pw, y);
         }
         g2.setStroke(new BasicStroke(1f));
@@ -162,12 +194,10 @@ public class LineChart extends BaseChart {
         g2.setStroke(new BasicStroke(1f));
         g2.drawLine(px, py, px, py + ph);
 
-        int ticks = 4;
         FontMetrics fm = g2.getFontMetrics();
-        for (int i = 0; i <= ticks; i++) {
-            double val = maxY * i / ticks;
-            int y = py + ph - (int) ((double) i / ticks * ph);
-            String label = formatValue(val);
+        for (double tick : ticks) {
+            int y = py + ph - (int) (tick / maxY * ph);
+            String label = formatCompact(tick);
             g2.drawString(label, px - fm.stringWidth(label) - 4, y + fm.getAscent() / 2);
         }
     }
