@@ -42,11 +42,13 @@ public final class GridOccupancy {
      */
     public List<Cell> occupy(GridLocation loc, String owner) {
         List<Cell> conflicts = new ArrayList<>();
-        for (int c = loc.colStart(); c <= lastColumn(loc, totalColumns); c++) {
-            Cell cell = new Cell(loc.row(), c);
-            if (owners.putIfAbsent(cell, owner) != null) conflicts.add(cell);
+        for (int r = loc.row(); r <= loc.rowEnd(); r++) {
+            for (int c = loc.colStart(); c <= lastColumn(loc, totalColumns); c++) {
+                Cell cell = new Cell(r, c);
+                if (owners.putIfAbsent(cell, owner) != null) conflicts.add(cell);
+            }
         }
-        maxRow = Math.max(maxRow, loc.row());
+        maxRow = Math.max(maxRow, loc.rowEnd());
         return conflicts;
     }
 
@@ -63,8 +65,10 @@ public final class GridOccupancy {
     public boolean fits(GridLocation loc) {
         int last = lastColumn(loc, totalColumns);
         if (last > totalColumns) return false;
-        for (int c = loc.colStart(); c <= last; c++) {
-            if (!isFree(loc.row(), c)) return false;
+        for (int r = loc.row(); r <= loc.rowEnd(); r++) {
+            for (int c = loc.colStart(); c <= last; c++) {
+                if (!isFree(r, c)) return false;
+            }
         }
         return true;
     }

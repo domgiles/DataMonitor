@@ -102,7 +102,7 @@ public class ConfigValidator {
             }
 
             if (blank(m.getGrid())) {
-                errors.add(prefix + ".grid is required (e.g. R1,C1 or R2,C1*)");
+                errors.add(prefix + ".grid is required (e.g. R1,C1, R2,C1* or R1-2,C3)");
             } else {
                 try {
                     GridLocation loc = GridLocation.parse(m.getGrid());
@@ -111,9 +111,14 @@ public class ConfigValidator {
                         errors.add(prefix + ".grid column " + lastCol
                             + " exceeds settings.columns (" + totalColumns + ")");
                     }
-                    for (GridOccupancy.Cell cell : occupancy.occupy(loc, prefix)) {
-                        errors.add(prefix + ".grid overlaps with another QModule at cell R"
-                            + cell.row() + "C" + cell.col());
+                    // One error per module, however many cells a multi-row block shares
+                    List<GridOccupancy.Cell> conflicts = occupancy.occupy(loc, prefix);
+                    if (!conflicts.isEmpty()) {
+                        errors.add(prefix + ".grid overlaps with another QModule at "
+                            + (conflicts.size() == 1 ? "cell " : "cells ")
+                            + conflicts.stream()
+                                .map(c -> "R" + c.row() + "C" + c.col())
+                                .collect(java.util.stream.Collectors.joining(", ")));
                     }
                 } catch (ConfigException e) {
                     errors.add(prefix + ".grid: " + e.getMessage());

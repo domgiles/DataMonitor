@@ -58,6 +58,24 @@ class GridOccupancyTest {
     }
 
     @Test
+    void multiRowLocationsOccupyEveryRow() throws ConfigException {
+        GridOccupancy g = new GridOccupancy(3);
+        assertTrue(g.occupy(loc("R1-3,C2-3"), "A").isEmpty());
+
+        for (int r = 1; r <= 3; r++) {
+            assertTrue(g.isFree(r, 1));
+            assertEquals("A", g.ownerAt(r, 2));
+            assertEquals("A", g.ownerAt(r, 3));
+        }
+        assertTrue(g.isFree(4, 2));
+        assertEquals(3, g.maxRow());
+
+        assertTrue(g.fits(loc("R1-3,C1")));
+        assertFalse(g.fits(loc("R3-4,C2")));
+        assertEquals(List.of(new GridOccupancy.Cell(3, 3)), g.occupy(loc("R3-4,C3"), "B"));
+    }
+
+    @Test
     void lastColumnHandlesSpanAllBeyondGrid() throws ConfigException {
         assertEquals(3, GridOccupancy.lastColumn(loc("R1,C1*"), 3));
         assertEquals(4, GridOccupancy.lastColumn(loc("R1,C4*"), 3));
@@ -66,7 +84,7 @@ class GridOccupancyTest {
 
     @Test
     void toSpecRoundTrips() throws ConfigException {
-        for (String spec : List.of("R1,C1", "R2,C1-3", "R3,C2*")) {
+        for (String spec : List.of("R1,C1", "R2,C1-3", "R3,C2*", "R1-2,C1", "R2-4,C2-3", "R1-3,C1*")) {
             assertEquals(spec, loc(spec).toSpec());
         }
     }
