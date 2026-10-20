@@ -179,6 +179,47 @@ java -jar lib/new-data-monitor.jar -c bin/datamonitor.yaml
 
 Other options: `--theme dark|light` overrides the configured theme, `--version` prints the version, `-h` shows help.
 
+### Web front end
+
+Start the dashboard as a web application instead of a desktop window:
+
+```sh
+./bin/datamonitor --web                    # http://127.0.0.1:8080
+./bin/datamonitor --web --port 9090
+```
+
+From a source checkout, the same with Ant:
+
+```sh
+ant run-web
+ant run-web -Dargs="--port 9090"
+```
+
+On startup it tests the database connection, then prints a link such as:
+
+```
+http://127.0.0.1:8080/?token=Xy3…
+```
+
+Open that link in a browser. The `token` is a random access key created for each run. The browser remembers it for the session, and the dashboard and its API refuse requests without it. Each time you restart the server, use the new link it prints.
+
+The web dashboard shows the same QModules as the desktop app, live and with the same dark/light themes. It also adds:
+
+- hover tooltips on every chart, and a trend sparkline under each TEXT value
+- a **Show as table** view for any module
+- the same **Add / Edit / Delete** as the desktop app: right-click a module, use its **⋯** menu, use **+ Add** in the header, or click an empty space on the grid
+- live updates in every open browser: an edit made in one browser appears in all of them
+
+Edits are saved to the configuration file exactly as in the desktop app (with a `.bak` of the original on the first save).
+
+| Option | Meaning |
+|---|---|
+| `--web` | Run the web front end instead of the desktop window |
+| `--port <n>` | Port to listen on (default `8080`) |
+| `--bind <address>` | Address to listen on. The default `127.0.0.1` means only this machine can connect. Use `0.0.0.0` to allow other machines. |
+
+> **Security:** anyone with the link can view the dashboard, edit QModules and run `SELECT` queries using the dashboard's database account. Keep the default `--bind 127.0.0.1` unless you need remote access. The server uses plain HTTP, so for remote use put it behind an HTTPS reverse proxy or an SSH tunnel. Passwords are never sent to the browser, and only `SELECT` / `WITH` statements are accepted.
+
 ### Database connection on the command line
 
 The username, password and connect string can be given on the command line instead of, or as well as, `settings.connection`:

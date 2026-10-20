@@ -46,6 +46,8 @@ ant jar         # Package build/dist/datamonitor/lib/new-data-monitor.jar
 ant dist        # clean + jar, then copy deps, launchers, sample YAML and README into build/dist/datamonitor/
 ant zip         # dist + dated archive datamonitorDDMMYYYY.zip in the project root
 ant run         # Compile and launch from the build classpath (-Dconfig=<file> to pick a config)
+ant run-web     # Same, but starts the web front end (--web); prints the access link
+                #   extra flags for either: -Dargs="--port 9090 --theme light"
 ant docs        # Generate Javadoc in docs/
 ant clean       # Delete build/ and docs/
 ant all         # clean → compile → jar
@@ -71,12 +73,14 @@ The launchers use `-cp lib/*`. The JAR manifest also carries a `Class-Path` list
 ```bash
 ant run                                  # uses ./datamonitor.yaml
 ant run -Dconfig=/path/to/other.yaml
+ant run-web                              # web front end on http://127.0.0.1:8080
+ant run-web -Dargs="--port 9090"
 build/dist/datamonitor/bin/datamonitor   # after ant dist
 build/dist/datamonitor/bin/datamonitor -c /path/to/other.yaml
 java -jar build/dist/datamonitor/lib/new-data-monitor.jar -c datamonitor.yaml
 ```
 
-CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--version`, `-h|--help`
+CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--port <n>`, `--bind <address>`, `--version`, `-h|--help`
 
 `-u`, `-p` and `--connect-string` each override one field of `settings.connection` for the current run. They are stored separately (`Settings.overrideConnection`), and runtime code uses `Settings.getEffectiveConnection()`, which is the file's connection with the overrides on top. `ConfigWriter` saves `getConnection()` only, so command-line values never reach the YAML. `ConfigValidator` checks the effective connection, so a config without a `connection` section is valid when all three flags are given. Per-module connections are not overridden.
 
@@ -116,6 +120,9 @@ Git repository, branch `main`. `.gitignore` excludes `Old Version of the Applica
 | `com.oracle.database.security:oraclepki` | 23.26.0.0.0 | runtime | Wallet / mTLS for Autonomous DB connections |
 | `org.yaml:snakeyaml` | 2.3 | compile | YAML config parsing (load and save) |
 | `com.fifesoft:rsyntaxtextarea` | 3.5.4 | compile | Syntax-highlighted SQL editor in the QModule dialog (BSD licence) |
+| `com.google.code.gson:gson` | 2.11.0 | compile | JSON for the web REST API |
+| `org.webjars.npm:echarts` | 5.5.1 | compile | Apache ECharts for the web charts (served from the jar, works offline) |
+| `org.webjars.npm:codemirror` | 5.65.16 | compile | CodeMirror 5 SQL editor in the web dialog |
 | `org.junit.platform:junit-platform-console-standalone` | 1.11.4 | test | JUnit 5 (Jupiter API + engine + console launcher) |
 
 > **Note:** `osdt_core` and `osdt_cert` are **not** separate dependencies — they are bundled inside `ojdbc17` from Oracle 23ai onwards. Do not add them; they do not exist at 23.x on Maven Central.
@@ -145,6 +152,14 @@ src/main/java/com/dom/datamonitor/
 │   ├── QueryRow.java                   Record: (key, value, color)
 │   └── QueryResult.java                Immutable result; factory methods success/error
 │
+├── engine/
+│   └── MonitorEngine.java              UI-independent runtime for the web mode: executors, rolling history, add/update/delete + save
+│
+├── web/
+│   ├── WebServer.java                  JDK HttpServer: static files, /vendor WebJars, token auth, same-site check, routing
+│   ├── ApiHandler.java                 REST API (JSON via Gson); never sends passwords
+│   └── EventStream.java                Server-Sent Events: "dashboard" snapshots + "result" updates, per-client queues
+│
 ├── db/
 │   ├── ConnectionManager.java          Singleton UCP pool manager (one pool per user/connect string/password); readable ORA- errors
 │   ├── QueryResultParser.java          JDBC ResultSet → QueryResult; auto-detects duplet/triplet format
@@ -171,6 +186,15 @@ src/main/java/com/dom/datamonitor/
     └── GridPicker.java                 Miniature grid: grey = taken, green = free, solid green = selected
 
 (util/ exists but is currently empty.)
+
+src/main/resources/web/                 Web front end (no build step; plain ES modules)
+├── index.html                          Shell, menus, dialogs
+├── app.css                             Both themes as CSS variables; operations-console look
+├── app.js                              Bootstrap, SSE, grid layout, context menu, delete confirm, theme toggle
+├── charts.js                           Card class: ECharts LINE/AREA/BAR/PIE, DOM TEXT/TABLE, table view
+├── editor.js                           Add/Edit dialog: form, location picker, CodeMirror, validation
+├── api.js                              fetch wrappers
+└── favicon.svg
 ```
 
 ---
@@ -297,6 +321,17 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - **Command-line overrides never leak into the saved file:** `--theme` is passed straight to `DashboardFrame`, and the connection flags live in `Settings.connectionOverride`, which `ConfigWriter` does not write.
 - **Empty dashboards** are valid. `ConfigValidator` no longer requires at least one module, because modules can be added from the UI.
 
+### Web front end (`--web`)
+
+- **Runtime:** `MonitorEngine` owns one `SQLExecutor` per module (ids `m1`, `m2`… for the life of the process), keeps a rolling history (window/refresh + 1 samples for LINE/AREA/TEXT, the latest for others), and applies add/update/delete. Each change is validated against the whole dashboard with `ConfigValidator`, checked as SELECT/WITH-only, applied, then saved with `ConfigWriter`. Late results from a replaced executor are dropped. The Swing UI still uses its own panels; moving it onto the engine is an open item.
+- **Server:** the JDK's `com.sun.net.httpserver`, so no web framework. It serves `/` (the app), `/app/*` (classpath `web/`), `/vendor/<lib>/*` (WebJar files; the version is read from the WebJar's `pom.properties`, so HTML never hard-codes it), `/api/*` and `/api/events`.
+- **API:** `GET /api/dashboard`, `POST /api/modules`, `PUT|DELETE /api/modules/{id}`, `POST /api/validate`. Errors are `{"error": …}` with status 400/404/500. Module connections are returned with `hasPassword` and never the password. A blank password on save or validate keeps the module's existing one.
+- **Live updates:** Server-Sent Events. A `dashboard` snapshot is sent on connect and after every change, so all browsers stay in sync, and `result` events are sent per module. Each client has a bounded queue drained by its own thread, so a slow browser never blocks the executors. Heartbeats every 15 s.
+- **Access control:** a random token per run, printed in the startup link. `/?token=…` sets an `HttpOnly; SameSite=Strict` cookie and redirects. `/api` accepts that cookie or `Authorization: Bearer`, compared in constant time. Non-GET requests with a foreign `Origin` get 403. The default bind is `127.0.0.1`, and binding elsewhere prints a warning. HTML is sent with a strict CSP (`default-src 'self'`), and every DB/config string is inserted as text (chart tooltips escape it).
+- **Charts:** ECharts for LINE (2px lines, 10% wash for a single series, end labels for 1–2 series), AREA (stacked, each band edged in a 40%-darker shade of its own colour, no edge for all-zero series, total in the tooltip), BAR (horizontal, ≤24px, rounded ends, value at the tip, one colour unless the SQL names colours) and PIE (donut, touching slices edged in a darker shade of their own colour, no edge on zero slices, total in the centre). TEXT tiles are DOM: a hero value, a signed ▲/▼ delta, a sparkline and the optional flash. TABLE is DOM. Every card has a table view.
+- **Colours:** SQL colour names are resolved server-side by the same `ColorPalette` the Swing charts use. Unnamed series use an 8-slot categorical palette in fixed order that was validated for colour-vision deficiency against both card surfaces. The Swing default palette failed that check, so the web version doesn't reuse it. A series keeps its slot for the card's lifetime.
+- **Browser theme:** the initial theme comes from the config (or `--theme`). The toggle is remembered per browser in `localStorage` and is never saved to the YAML.
+
 ### Area chart colour fidelity
 
 - The `LinearGradientPaint` for each series band is scoped to that band's actual vertical extent (computed by scanning all time points), not the full plot height. This ensures every series gets the full alpha range regardless of its stack position.
@@ -329,6 +364,10 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 
 | Item | Detail |
 |---|---|
+| Swing UI not on `MonitorEngine` | Desktop and web share config, validation and saving, but the Swing panels still own their executors. Moving Swing onto the engine would remove the duplicated add/edit/delete logic. |
+| Web server is HTTP only | No TLS; use the default localhost bind, an SSH tunnel or an HTTPS reverse proxy for remote access. |
+| Web token changes every run | Bookmarks stop working after a restart; a `--token` option or a stored token could be added. |
+| No browser tests in the build | The web UI was verified by driving headless Chrome by hand; `WebServerTest` covers the HTTP API only. |
 | Limited UI tests | `DashboardPanelTest` covers runtime add/replace/remove, but the dialogs and chart rendering are only checked by hand. |
 | Saving drops YAML comments | SnakeYAML cannot round-trip comments; the original is kept as `<config>.bak` on the first save of each session. |
 | No DB integration tests | `ConnectionManager` and `SQLExecutor.execute()` are only exercised against a real database. |
