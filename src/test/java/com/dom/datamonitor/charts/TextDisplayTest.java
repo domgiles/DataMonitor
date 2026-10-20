@@ -35,7 +35,7 @@ class TextDisplayTest {
         assertEquals("", display.deltaText(), "no change to show after the first reading");
 
         display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 30.5, null))));
-        assertEquals("▲ +20.50", display.deltaText());
+        assertEquals("▲ +20.5", display.deltaText());
         display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 29.5, null))));
         assertEquals("▼ -1", display.deltaText());
         display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 29.5, null))));

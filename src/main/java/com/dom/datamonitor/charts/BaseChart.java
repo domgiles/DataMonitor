@@ -5,6 +5,11 @@ import com.dom.datamonitor.model.QueryResult;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 /**
  * Abstract base for all chart/display components.
@@ -147,15 +152,33 @@ public abstract class BaseChart extends JPanel {
     }
 
     /**
-     * Formats a double value for display: uses integer notation when the value
-     * has no meaningful decimal part, otherwise two decimal places.
+     * Formats a value for display, with the same rules as the web front end's
+     * {@code formatValue}: 1,284 · 512.5 → 513 · 12.5 · 3.14 · 0.00412 · 3.4M. Values of 100 and
+     * more have no decimals, 10–100 one, below 10 two (trailing zeros dropped); values below 1
+     * keep three significant digits so small rates stay readable; millions and up are compact.
      */
     protected static String formatValue(double value) {
-        if (value == 0) return "0";
-        if (value >= 1_000_000) return String.format("%.1fM", value / 1_000_000);
-        if (value >= 1_000)     return String.format("%.1fK", value / 1_000);
-        if (value == (long) value) return String.valueOf((long) value);
-        return String.format("%.2f", value);
+        return formatValue(value, Locale.getDefault());
+    }
+
+    static String formatValue(double value, Locale locale) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) return "–";
+        double abs = Math.abs(value);
+        if (abs >= 1_000_000) {
+            NumberFormat compact = NumberFormat.getCompactNumberInstance(locale, NumberFormat.Style.SHORT);
+            compact.setMaximumFractionDigits(1);
+            compact.setRoundingMode(RoundingMode.HALF_UP);
+            return compact.format(value);
+        }
+        NumberFormat f = NumberFormat.getNumberInstance(locale);
+        f.setRoundingMode(RoundingMode.HALF_UP);   // like the browser: 512.5 → 513, not 512
+        if (abs > 0 && abs < 1) {
+            // Three significant digits: 0.00412, 0.125
+            f.setMaximumFractionDigits(Math.max(0, 2 - (int) Math.floor(Math.log10(abs))));
+            return f.format(new BigDecimal(value).round(new MathContext(3, RoundingMode.HALF_UP)));
+        }
+        f.setMaximumFractionDigits(abs == 0 || abs >= 100 ? 0 : abs >= 10 ? 1 : 2);
+        return f.format(value);
     }
 
     /** Inner padding for plot area (pixels). */
