@@ -13,6 +13,10 @@ class GridOccupancyTest {
         return GridLocation.parse(spec);
     }
 
+    private static GridOccupancy.Cell cell(int row, int col) {
+        return new GridOccupancy.Cell(row, col);
+    }
+
     @Test
     void tracksOwnersAndFreeCells() throws ConfigException {
         GridOccupancy g = new GridOccupancy(3);
@@ -73,6 +77,33 @@ class GridOccupancyTest {
         assertTrue(g.fits(loc("R1-3,C1")));
         assertFalse(g.fits(loc("R3-4,C2")));
         assertEquals(List.of(new GridOccupancy.Cell(3, 3)), g.occupy(loc("R3-4,C3"), "B"));
+    }
+
+    @Test
+    void placementsKeepEachModuleAsOneBlock() throws ConfigException {
+        GridOccupancy g = new GridOccupancy(3);
+        g.occupy(loc("R1-2,C2*"), "Same title");
+        g.occupy(loc("R3,C2-3"), "Same title");
+
+        assertEquals(List.of(
+            new GridOccupancy.Placement(new GridLocation(1, 2, 3, 2), "Same title"),
+            new GridOccupancy.Placement(new GridLocation(3, 2, 3, 3), "Same title")), g.placements());
+    }
+
+    @Test
+    void largestFreeRectangleStopsAtTakenCells() throws ConfigException {
+        GridOccupancy g = new GridOccupancy(3);
+        g.occupy(loc("R1,C1"), "A");
+        g.occupy(loc("R3,C3"), "B");
+
+        assertEquals(loc("R1-2,C2-3"), g.largestFreeRectangle(cell(1, 2), cell(2, 3)));
+        // R2,C1 to R3,C3 would include B; the largest free part is the 2 x 2 block on the left
+        assertEquals(loc("R2-3,C1-2"), g.largestFreeRectangle(cell(2, 1), cell(3, 3)));
+        // Upwards and leftwards
+        assertEquals(loc("R1-2,C2-3"), g.largestFreeRectangle(cell(2, 3), cell(1, 1)));
+        // Single cell, and a taken anchor
+        assertEquals(loc("R4,C2"), g.largestFreeRectangle(cell(4, 2), cell(4, 2)));
+        assertNull(g.largestFreeRectangle(cell(1, 1), cell(2, 2)));
     }
 
     @Test

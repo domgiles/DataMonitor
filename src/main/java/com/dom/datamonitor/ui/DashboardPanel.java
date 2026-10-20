@@ -165,6 +165,7 @@ public class DashboardPanel extends JPanel {
     /** (Re)builds the grid from {@link #modules}; called after every runtime change. */
     private void layoutModules() {
         removeAll();
+        int rowCount = highestRow();
 
         for (QModulePanel panel : modules) {
             GridLocation loc = panel.getGridLocation();
@@ -174,15 +175,16 @@ public class DashboardPanel extends JPanel {
             gbc.gridx      = loc.gridBagX();
             gbc.gridy      = loc.gridBagY();
             gbc.gridwidth  = span;
-            gbc.gridheight = 1;
+            gbc.gridheight = loc.rowSpan();
             gbc.fill       = GridBagConstraints.BOTH;
             gbc.weightx    = span;
-            gbc.weighty    = 1.0;
+            gbc.weighty    = 0;   // row weights are set on the layout below
             gbc.insets     = new Insets(border, border, 0, border);
 
-            // Preferred size: height from config or default
+            // Preferred size: a multi-row module also covers the gaps between its rows
             int preferredW = span * DEFAULT_CELL_MIN_WIDTH;
-            panel.setPreferredSize(new Dimension(preferredW, DEFAULT_ROW_HEIGHT));
+            int preferredH = loc.rowSpan() * DEFAULT_ROW_HEIGHT + (loc.rowSpan() - 1) * border;
+            panel.setPreferredSize(new Dimension(preferredW, preferredH));
 
             add(panel, gbc);
         }
@@ -190,16 +192,41 @@ public class DashboardPanel extends JPanel {
         // Add invisible row-weight filler at the bottom so rows don't stretch
         GridBagConstraints filler = new GridBagConstraints();
         filler.gridx     = 0;
-        filler.gridy     = highestRow() + 1;
+        filler.gridy     = rowCount;
         filler.gridwidth = totalColumns;
-        filler.weighty   = 0.001; // tiny – pushes content to top
         filler.fill      = GridBagConstraints.VERTICAL;
         JComponent strut = (JComponent) Box.createVerticalStrut(border);
         strut.setInheritsPopupMenu(true);
         add(strut, filler);
 
+        applyRowSizes(rowCount);
         revalidate();
         repaint();
+    }
+
+    /**
+     * Gives every row that a module covers the same height and weight. Left to itself,
+     * GridBagLayout sizes rows from the single-row components in them, so a row covered only
+     * by multi-row modules collapses or comes out uneven. Rows nothing covers stay collapsed,
+     * as before; the filler row below gets a tiny weight so the content sits at the top.
+     */
+    private void applyRowSizes(int rowCount) {
+        boolean[] covered = new boolean[rowCount];
+        for (QModulePanel panel : modules) {
+            GridLocation loc = panel.getGridLocation();
+            for (int r = loc.row(); r <= loc.rowEnd(); r++) covered[r - 1] = true;
+        }
+        int[]    heights = new int[rowCount + 1];
+        double[] weights = new double[rowCount + 1];
+        for (int r = 0; r < rowCount; r++) {
+            heights[r] = covered[r] ? DEFAULT_ROW_HEIGHT + border : 0;
+            weights[r] = covered[r] ? 1.0 : 0.0;
+        }
+        weights[rowCount] = 0.001;   // tiny – pushes content to top
+
+        GridBagLayout layout = (GridBagLayout) getLayout();
+        layout.rowHeights = heights;
+        layout.rowWeights = weights;
     }
 
     private JPopupMenu moduleMenu(QModulePanel panel) {
@@ -229,7 +256,7 @@ public class DashboardPanel extends JPanel {
 
     private int highestRow() {
         return modules.stream()
-            .mapToInt(m -> m.getGridLocation().row())
+            .mapToInt(m -> m.getGridLocation().rowEnd())
             .max().orElse(1);
     }
 
