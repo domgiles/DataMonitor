@@ -143,7 +143,7 @@ public class QModulePanel extends JPanel {
             case AREA  -> new AreaChart(theme, windowSize, refreshRate);
             case BAR   -> new BarChart(theme);
             case PIE   -> new PieChart(theme);
-            case TEXT  -> new TextDisplay(theme, settings.isFlashOnChange(), config.getTitle());
+            case TEXT  -> new TextDisplay(theme, settings.isFlashOnChange(), config.getTitle(), windowSize);
             case TABLE -> new TableDisplay(theme);
         };
     }
@@ -192,11 +192,19 @@ public class QModulePanel extends JPanel {
             g2.setStroke(new BasicStroke(1f));
             g2.drawLine(0, h - 1, w, h - 1);
 
-            // Title text
-            g2.setFont(theme.titleFont);
+            // Title text: shrinks (down to 9pt) to fit a narrow module, then ends in an ellipsis
+            int   room = w - 12;
+            Font  font = theme.titleFont;
+            float size = font.getSize2D();
+            while (size > 9f && g2.getFontMetrics(font.deriveFont(size)).stringWidth(title) > room) size -= 0.5f;
+            g2.setFont(font.deriveFont(size));
             g2.setColor(theme.foreground);
             FontMetrics fm = g2.getFontMetrics();
-            g2.drawString(title, (w - fm.stringWidth(title)) / 2,
+            String text = title;
+            while (text.length() > 1 && fm.stringWidth(text) > room) {
+                text = text.substring(0, text.length() - 2) + "…";
+            }
+            g2.drawString(text, (w - fm.stringWidth(text)) / 2,
                 (h + fm.getAscent() - fm.getDescent()) / 2);
         }
     }

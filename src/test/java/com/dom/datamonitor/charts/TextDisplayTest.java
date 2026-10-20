@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TextDisplayTest {
 
     private static String labelFor(String title, String key) {
-        TextDisplay display = new TextDisplay(Theme.DARK, false, title);
+        TextDisplay display = new TextDisplay(Theme.DARK, false, title, 120);
         display.updateData(QueryResult.success(List.of(new QueryRow(key, 42, null))));
         return display.label();
     }
@@ -26,5 +26,19 @@ class TextDisplayTest {
     void labelThatAddsInformationIsShown() {
         assertEquals("Checkpoints", labelFor("Checkpoints Since Start", "Checkpoints"));
         assertEquals("Transactions", labelFor(null, "Transactions"));
+    }
+
+    @Test
+    void deltaShowsTheChangeWithDirection() {
+        TextDisplay display = new TextDisplay(Theme.DARK, false, "Tx/Sec", 120);
+        display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 10, null))));
+        assertEquals("", display.deltaText(), "no change to show after the first reading");
+
+        display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 30.5, null))));
+        assertEquals("▲ +20.50", display.deltaText());
+        display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 29.5, null))));
+        assertEquals("▼ -1", display.deltaText());
+        display.updateData(QueryResult.success(List.of(new QueryRow("Tx/Sec", 29.5, null))));
+        assertEquals("± 0", display.deltaText());
     }
 }
