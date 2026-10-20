@@ -16,20 +16,25 @@ as one of six chart types arranged on a grid.
 Unzip the distribution archive and edit the configuration file:
 
 ```
-datamonitor24022026.zip
-└── datamonitor/
+datamonitor20102026.zip
+└── DataMonitor/
     ├── bin/
-    │   ├── datamonitor          ← Unix/macOS launcher
-    │   ├── datamonitor.bat      ← Windows launcher
+    │   ├── datamonitor          ← desktop dashboard (macOS / Linux)
+    │   ├── datamonitorweb       ← web dashboard (macOS / Linux)
     │   └── datamonitor.yaml     ← configuration (edit this)
-    ├── lib/                     ← JARs (do not modify)
-    └── log/                     ← log output
+    ├── winbin/
+    │   ├── datamonitor.bat      ← desktop dashboard (Windows)
+    │   └── datamonitorweb.bat   ← web dashboard (Windows)
+    ├── lib/
+    │   ├── datamonitor.jar      ← the application and all its libraries
+    │   └── launcher/            ← used by the launcher (do not modify)
+    └── launcher/                ← Apache Commons Launcher: launcher.xml holds the JVM settings
 ```
 
-On Unix/macOS make sure the launcher is executable (it should already be, but if not):
+On macOS / Linux the commands should already be executable; if not:
 
 ```sh
-chmod +x bin/datamonitor
+chmod +x bin/datamonitor bin/datamonitorweb
 ```
 
 ## Configuration
@@ -159,26 +164,26 @@ Every change is saved to the configuration file straight away. The first save al
 
 ## Running
 
-**Unix/macOS**
+**macOS / Linux**
 ```sh
 ./bin/datamonitor
 ```
 
 **Windows**
 ```bat
-bin\datamonitor.bat
+winbin\datamonitor.bat
 ```
 
-The launcher passes `bin/datamonitor.yaml` automatically. To use a different config file:
+The commands run from the `bin` directory, so they use `bin/datamonitor.yaml` unless you name another file. A relative `-c` path is therefore read from `bin`; an absolute path is safest:
 
 ```sh
 ./bin/datamonitor -c /path/to/other.yaml
 ```
 
-The application JAR can also be started directly; it finds its dependencies in the same `lib/` folder:
+The commands start the app through Apache Commons Launcher; JVM settings such as the memory limit (`-Xmx512m`) are in `launcher/launcher.xml`. `lib/datamonitor.jar` holds the application and every library it needs, so it can also be started directly:
 
 ```sh
-java -jar lib/new-data-monitor.jar -c bin/datamonitor.yaml
+java -jar lib/datamonitor.jar -c bin/datamonitor.yaml
 ```
 
 Other options: `--theme dark|light` overrides the configured theme, `--version` prints the version, `-h` shows help.
@@ -188,9 +193,12 @@ Other options: `--theme dark|light` overrides the configured theme, `--version` 
 Start the dashboard as a web application instead of a desktop window:
 
 ```sh
-./bin/datamonitor --web                    # http://127.0.0.1:8080
-./bin/datamonitor --web --port 9090
+./bin/datamonitorweb                       # http://127.0.0.1:8080
+./bin/datamonitorweb --port 9090
+winbin\datamonitorweb.bat                  # Windows
 ```
+
+(`datamonitorweb` is `datamonitor --web`; either works.)
 
 From a source checkout, the same with Ant:
 
@@ -209,7 +217,7 @@ Open that link in a browser. The `token` is a random access key created for each
 
 The web dashboard shows the same QModules as the desktop app, live and with the same dark/light themes. It also adds:
 
-- hover tooltips on every chart, and a trend sparkline under each TEXT value
+- hover tooltips on bar and pie charts too (both versions show them on line and area charts)
 - a **Show as table** view for any module
 - the same **Add / Edit / Delete** as the desktop app: right-click a module, use its **⋯** menu, use **+ Add** in the header, or click an empty space on the grid
 - live updates in every open browser: an edit made in one browser appears in all of them

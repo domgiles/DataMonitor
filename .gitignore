@@ -19,3 +19,4 @@
 # Backups / temp files written when the dashboard saves its config
 *.yaml.bak
 *.yaml.tmp
+/DataMonitor/

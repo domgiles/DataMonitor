@@ -1,0 +1,46 @@
+<!--
+    Apache Commons Launcher targets for the DataMonitor distribution.
+
+    Each script in bin/ and winbin/ runs
+        java -cp ../launcher LauncherBootstrap -executablename <name> <target> [options]
+    from the bin directory; the options are passed on to the application, after any <arg>
+    given here. The JVM settings live here so the scripts stay the same on every platform.
+-->
+<project name="DataMonitor Launcher" default="datamonitor" basedir=".">
+
+    <property name="base.dir" value="${basedir}/.."/>
+    <property name="lib.dir"  value="${base.dir}/lib"/>
+
+    <path id="base.class.path">
+        <fileset dir="${lib.dir}" includes="*.jar"/>
+    </path>
+
+    <jvmargset id="base.jvm.args">
+        <jvmarg line="-Xmx512m"/>
+    </jvmargset>
+
+    <syspropertyset id="base.sys.props">
+        <sysproperty key="awt.useSystemAAFontSettings" value="on"/>
+        <sysproperty key="swing.aatext" value="true"/>
+    </syspropertyset>
+
+    <!-- Desktop dashboard -->
+    <target name="datamonitor">
+        <launch classname="com.dom.datamonitor.DataMonitor" usesystemin="false">
+            <classpath refid="base.class.path"/>
+            <syspropertyset refid="base.sys.props"/>
+            <jvmargset refid="base.jvm.args"/>
+        </launch>
+    </target>
+
+    <!-- Browser dashboard: prints a link with an access token; Ctrl+C stops it -->
+    <target name="datamonitorweb">
+        <launch classname="com.dom.datamonitor.DataMonitor" usesystemin="true">
+            <classpath refid="base.class.path"/>
+            <syspropertyset refid="base.sys.props"/>
+            <jvmargset refid="base.jvm.args"/>
+            <arg value="--web"/>
+        </launch>
+    </target>
+
+</project>

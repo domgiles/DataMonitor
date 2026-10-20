@@ -1,0 +1,5 @@
+#!/bin/sh
+# Runs the datamonitor target in ../launcher/launcher.xml from this directory, so the
+# datamonitor.yaml next to this script is used unless -c names another file.
+cd "$(dirname "$0")"
+exec java -cp ../launcher LauncherBootstrap -executablename datamonitor datamonitor "$@"
