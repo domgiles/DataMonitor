@@ -42,6 +42,12 @@
                     rev="2.3"
                     conf="compile->default"/>
 
+        <!-- Syntax-highlighting SQL editor for the QModule dialog (BSD licence) -->
+        <dependency org="com.fifesoft"
+                    name="rsyntaxtextarea"
+                    rev="3.5.4"
+                    conf="compile->default"/>
+
         <!-- JUnit 5: the console-standalone JAR bundles Jupiter API/engine and the launcher -->
         <dependency org="org.junit.platform"
                     name="junit-platform-console-standalone"

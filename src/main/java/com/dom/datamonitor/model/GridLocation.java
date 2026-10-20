@@ -85,6 +85,13 @@ public record GridLocation(int row, int colStart, int colEnd) {
         return (colEnd == SPAN_ALL) ? (totalColumns - colStart + 1) : (colEnd - colStart + 1);
     }
 
+    /** Formats this location in the config syntax accepted by {@link #parse}, e.g. {@code R2,C1-3}. */
+    public String toSpec() {
+        if (colEnd == SPAN_ALL)   return "R" + row + ",C" + colStart + "*";
+        if (colEnd == colStart)   return "R" + row + ",C" + colStart;
+        return "R" + row + ",C" + colStart + "-" + colEnd;
+    }
+
     /** 0-based x index suitable for {@code GridBagConstraints.gridx}. */
     public int gridBagX() { return colStart - 1; }
 

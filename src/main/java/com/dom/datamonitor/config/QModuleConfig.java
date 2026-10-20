@@ -110,4 +110,20 @@ public class QModuleConfig {
 
     public ConnectionConfig getConnection()           { return connection;   }
     public void             setConnection(ConnectionConfig v) { this.connection = v; }
+
+    /** Deep copy, so an edit dialog can work on a scratch copy and Cancel leaves the original untouched. */
+    public QModuleConfig copy() {
+        QModuleConfig c = new QModuleConfig();
+        c.title          = title;
+        c.comment        = comment;
+        c.grid           = grid;
+        c.chartType      = chartType;
+        c.sql            = sql;
+        c.processingMode = processingMode;
+        c.refreshRate    = refreshRate;
+        c.windowSize     = windowSize;
+        c.divideBy       = divideBy;
+        c.connection     = (connection != null) ? connection.copy() : null;
+        return c;
+    }
 }

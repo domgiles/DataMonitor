@@ -86,7 +86,9 @@ public class QModulePanel extends JPanel {
         if (executor != null) executor.stop();
     }
 
-    public GridLocation getGridLocation() { return gridLocation; }
+    public GridLocation  getGridLocation() { return gridLocation;      }
+    public QModuleConfig getConfig()       { return config;            }
+    public String        getTitle()        { return config.getTitle(); }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Layout
@@ -103,6 +105,10 @@ public class QModulePanel extends JPanel {
 
         // Chart body
         add(chart, BorderLayout.CENTER);
+
+        // Right-click anywhere on the module shows the menu set on this panel
+        titleStrip.setInheritsPopupMenu(true);
+        chart.setInheritsPopupMenu(true);
     }
 
     /** Propagates a theme change to the border, title strip and embedded chart. */

@@ -112,7 +112,8 @@ Git repository, branch `main`. `.gitignore` excludes `Old Version of the Applica
 | `com.oracle.database.jdbc:ojdbc17` | 23.26.0.0.0 | compile | Oracle JDBC Thin driver (JDK 17 build) |
 | `com.oracle.database.jdbc:ucp17` | 23.26.0.0.0 | compile | Oracle Universal Connection Pool |
 | `com.oracle.database.security:oraclepki` | 23.26.0.0.0 | runtime | Wallet / mTLS for Autonomous DB connections |
-| `org.yaml:snakeyaml` | 2.3 | compile | YAML config parsing |
+| `org.yaml:snakeyaml` | 2.3 | compile | YAML config parsing (load and save) |
+| `com.fifesoft:rsyntaxtextarea` | 3.5.4 | compile | Syntax-highlighted SQL editor in the QModule dialog (BSD licence) |
 | `org.junit.platform:junit-platform-console-standalone` | 1.11.4 | test | JUnit 5 (Jupiter API + engine + console launcher) |
 
 > **Note:** `osdt_core` and `osdt_cert` are **not** separate dependencies — they are bundled inside `ojdbc17` from Oracle 23ai onwards. Do not add them; they do not exist at 23.x on Maven Central.
@@ -130,20 +131,23 @@ src/main/java/com/dom/datamonitor/
 │   ├── ConnectionConfig.java           username / password / connectString / credentialsFile
 │   ├── QModuleConfig.java              Per-module config bean
 │   ├── ConfigLoader.java               SnakeYAML loader (JavaBeans constructor)
+│   ├── ConfigWriter.java               Saves edits back to YAML; .bak of original on first save; atomic write
 │   ├── ConfigValidator.java            Full validation; collects all errors before throwing
 │   └── ConfigException.java           Checked exception for config errors
 │
 ├── model/
 │   ├── ChartType.java                  Enum: LINE, AREA, BAR, PIE, TEXT, TABLE
 │   ├── ProcessingMode.java             Enum: NONE, DIFFERENCE, CHANGE_PER_MIN, CHANGE_PER_HOUR, CUMULATIVE_SINCE_START
-│   ├── GridLocation.java               Record: parses "R2,C1-3" grid strings
+│   ├── GridLocation.java               Record: parses "R2,C1-3" grid strings; toSpec() formats them
+│   ├── GridOccupancy.java              Which cells are taken and by whom; shared by validator and location picker
 │   ├── QueryRow.java                   Record: (key, value, color)
 │   └── QueryResult.java                Immutable result; factory methods success/error
 │
 ├── db/
 │   ├── ConnectionManager.java          Singleton UCP pool manager (one pool per username@connectString)
 │   ├── QueryResultParser.java          JDBC ResultSet → QueryResult; auto-detects duplet/triplet format
-│   └── SQLExecutor.java                ScheduledExecutorService; processing modes; rate normalisation; divideBy
+│   ├── SQLExecutor.java                ScheduledExecutorService; processing modes; rate normalisation; divideBy
+│   └── SqlValidator.java               Editor "Validate SQL": read-only guard, column-layout check, one-off run + preview
 │
 ├── charts/
 │   ├── Theme.java                      Immutable colour+font palette; Theme.DARK / Theme.LIGHT
@@ -157,10 +161,12 @@ src/main/java/com/dom/datamonitor/
 │   └── TableDisplay.java               Custom-painted table with alternating rows and colour dots
 │
 └── ui/
-    ├── DashboardFrame.java             JFrame; scroll pane; theme toggle; shutdown hook
-    ├── DashboardPanel.java             GridBagLayout container for all QModulePanels
-    ├── HeaderBar.java                  Title / connection / status / theme-toggle button
-    └── QModulePanel.java               Per-module container: TitleStrip (inner class) + BaseChart
+    ├── DashboardFrame.java             JFrame; scroll pane; theme toggle; add/edit/delete actions + auto-save
+    ├── DashboardPanel.java             GridBagLayout container; add/replace/remove modules at runtime; right-click menus
+    ├── HeaderBar.java                  Title / connection / status / add (+) and theme-toggle buttons
+    ├── QModulePanel.java               Per-module container: TitleStrip (inner class) + BaseChart
+    ├── QModuleDialog.java              Add/Edit dialog: settings form, location picker, SQL editor, validation
+    └── GridPicker.java                 Miniature grid: grey = taken, green = free, solid green = selected
 
 (util/ exists but is currently empty.)
 ```
@@ -276,6 +282,18 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - Theme changes propagate: `DashboardFrame → DashboardPanel → QModulePanel → (TitleStrip + BaseChart)`. Each layer calls `setTheme(Theme)` on its children.
 - The theme-toggle button uses `BasicButtonUI` to bypass macOS Aqua native painting, ensuring `setBackground()` and `setBorder()` take effect.
 
+### Editing QModules at runtime
+
+- **Entry points:** right-click a module (Edit… / Delete… / Add QModule…), right-click empty dashboard space, or the **+** button in the header. Menus are set with `setComponentPopupMenu`; the title strip and chart use `setInheritsPopupMenu(true)` so a right-click anywhere on a module works.
+- **Delete** asks for confirmation with Cancel as the default button.
+- **Add / Edit** open `QModuleDialog`. It works on `QModuleConfig.copy()`, so Cancel changes nothing. Fields that are left at the dashboard default are saved as unset, which keeps the YAML minimal.
+- **Location:** `GridPicker` is built from `DashboardPanel.occupancyExcluding(module)`, so the module being edited can stay where it is. An extra empty row is always offered at the bottom. If the location is unchanged, the original grid text (e.g. `R2,C1*`) is kept.
+- **SQL validation:** OK stays disabled until the current SQL and connection have validated. Any edit to either disables it again; changing the chart type only recomputes warnings. When editing, the saved SQL counts as validated until it is changed. `SqlValidator` refuses anything that is not `SELECT`/`WITH` (so Validate can never modify data), rejects a trailing `;`, runs with a 15 s timeout and a 20-row limit, rolls back afterwards, and checks the column layout matches what `QueryResultParser` supports. Cmd/Ctrl+Enter validates from the editor.
+- **Runtime changes:** `DashboardPanel.addModule / replaceModule / removeModule` keep the panel list and `config.getQmodules()` in step, re-run the GridBag layout, and start/stop executors. Untouched modules keep their panels and chart history. `replaceModule` builds the new panel before stopping the old one, so a failure changes nothing.
+- **Saving:** after every change `DashboardFrame` calls `ConfigWriter.save()`. The first save in a session copies the original to `<config>.bak`, because SnakeYAML cannot keep comments. Writes go through a temp file and an atomic move. If saving fails, the live change stays and the user is told it will be lost on exit.
+- **`--theme` override** is passed straight to `DashboardFrame` and is never written into the config, so it cannot leak into the saved file.
+- **Empty dashboards** are valid. `ConfigValidator` no longer requires at least one module, because modules can be added from the UI.
+
 ### Area chart colour fidelity
 
 - The `LinearGradientPaint` for each series band is scoped to that band's actual vertical extent (computed by scanning all time points), not the full plot height. This ensures every series gets the full alpha range regardless of its stack position.
@@ -301,11 +319,13 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 
 ---
 
-## Open Issues (as of 2026-10-19)
+## Open Issues (as of 2026-10-20)
 
 | Item | Detail |
 |---|---|
-| No UI / chart tests | Tests cover config, parsing, processing and colours. Swing panels and chart rendering are untested. |
+| Limited UI tests | `DashboardPanelTest` covers runtime add/replace/remove, but the dialogs and chart rendering are only checked by hand. |
+| Saving drops YAML comments | SnakeYAML cannot round-trip comments; the original is kept as `<config>.bak` on the first save of each session. |
+| Stale pool after changing a module's password | `ConnectionManager` keys pools by `username@connectString`, so editing only the password of a per-module connection keeps using the old pool until restart. |
 | No DB integration tests | `ConnectionManager` and `SQLExecutor.execute()` are only exercised against a real database. |
 | `ant run` ignores a non-zero exit | The `run` target has no `failonerror`, so a config error still reports BUILD SUCCESSFUL. |
 | `loadFromResource` differs from `load` | Only `load(File)` rejects duplicate YAML keys. |

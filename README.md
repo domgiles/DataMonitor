@@ -138,6 +138,21 @@ SELECT 'Writes', 'red',   sum(phywrts) FROM v$filestat
 Named colours: `red`, `blue`, `green`, `orange`, `yellow`, `cyan`, `pink`,
 `light green`, `light gray`, `dark red`, `gray brown`, etc.
 
+### Editing the dashboard while it runs
+
+You can add, edit and delete QModules without touching the YAML file:
+
+- **Right-click a module** and choose **Edit…** or **Delete…**. Delete asks you to confirm first.
+- **Add a module** with the **+** button in the header, or right-click an empty part of the dashboard and choose **Add QModule…**.
+
+The Add/Edit dialog contains:
+
+- **Module:** title, chart type, processing mode, refresh rate, window size and divide-by. Tick **Default** to use the dashboard-wide value. You can also give a module its own database connection.
+- **Location:** a miniature of the dashboard. Grey cells are taken by other modules, green cells are free, and your selection is solid green. Click a free cell, or drag along a row to span several columns. There is always an empty row at the bottom for adding a new row.
+- **SQL:** a colour-coded editor. Press **Validate SQL** (or Cmd/Ctrl+Enter) to run the query once. The dialog checks the result has a layout the charts understand and shows a preview of the rows. **Add**/**Save** stays disabled until the SQL validates. Only `SELECT` / `WITH` queries are accepted, so validating can never change data.
+
+Every change is saved to the configuration file straight away. The first save also keeps a copy of your original file as `datamonitor.yaml.bak`. That copy keeps your comments, which the saved file does not.
+
 ## Running
 
 **Unix/macOS**

@@ -117,7 +117,11 @@ public class QueryResultParser {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static boolean isStringType(ResultSetMetaData meta, int col) throws SQLException {
-        int type = meta.getColumnType(col);
+        return isStringType(meta.getColumnType(col));
+    }
+
+    /** True for character column types; used to tell (key, colour, value) from (key, value, colour). */
+    static boolean isStringType(int type) {
         return type == Types.VARCHAR || type == Types.CHAR
             || type == Types.NVARCHAR || type == Types.NCHAR
             || type == Types.LONGVARCHAR;

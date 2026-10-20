@@ -65,11 +65,14 @@ public class DataMonitor {
         final AppConfig config;
         try {
             config = ConfigLoader.load(new File(configPath));
-
-            // Apply CLI theme override
-            if (themeOverride != null) config.getSettings().setTheme(themeOverride);
-
             new ConfigValidator().validate(config);
+
+            // The CLI theme applies to this run only; it is not written into the config,
+            // which is saved back to disk when QModules are edited
+            if (themeOverride != null
+                    && !themeOverride.equalsIgnoreCase("dark") && !themeOverride.equalsIgnoreCase("light")) {
+                throw new ConfigException("--theme must be 'dark' or 'light', got: " + themeOverride);
+            }
 
         } catch (ConfigException e) {
             System.err.println("\n" + e.getMessage() + "\n");
@@ -87,9 +90,11 @@ public class DataMonitor {
         System.setProperty("swing.aatext",                "true");
 
         // Launch on the Event Dispatch Thread
+        final File   configFile = new File(configPath);
+        final String themeName  = (themeOverride != null) ? themeOverride : config.getSettings().getTheme();
         SwingUtilities.invokeLater(() -> {
             try {
-                DashboardFrame frame = new DashboardFrame(config);
+                DashboardFrame frame = new DashboardFrame(config, configFile, themeName);
                 frame.setVisible(true);
             } catch (Exception e) {
                 String msg = "Failed to create dashboard window: " + e.getMessage();

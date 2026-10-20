@@ -44,6 +44,15 @@ public class ConnectionConfig {
     public String getCredentialsFile()        { return credentialsFile;        }
     public void   setCredentialsFile(String v){ this.credentialsFile = v;      }
 
+    public ConnectionConfig copy() {
+        ConnectionConfig c = new ConnectionConfig();
+        c.username        = username;
+        c.password        = password;
+        c.connectString   = connectString;
+        c.credentialsFile = credentialsFile;
+        return c;
+    }
+
     @Override
     public String toString() {
         return username + "@" + connectString;

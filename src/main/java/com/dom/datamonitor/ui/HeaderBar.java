@@ -21,9 +21,12 @@ public class HeaderBar extends JPanel {
     private final JLabel connectionLabel = new JLabel();
     private final JLabel statusLabel     = new JLabel("Connecting…");
     private final JButton themeToggle    = new JButton();
+    private final JButton addButton      = new JButton();
 
     /** Fired when the user clicks the theme toggle button. */
     private Runnable onThemeToggle = () -> {};
+    /** Fired when the user clicks the add-QModule button. */
+    private Runnable onAddModule   = () -> {};
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -45,6 +48,10 @@ public class HeaderBar extends JPanel {
 
     public void setOnThemeToggle(Runnable r) {
         this.onThemeToggle = r;
+    }
+
+    public void setOnAddModule(Runnable r) {
+        this.onAddModule = r;
     }
 
     public void setTheme(Theme theme) {
@@ -73,6 +80,13 @@ public class HeaderBar extends JPanel {
         themeToggle.setUI(new javax.swing.plaf.basic.BasicButtonUI());
         themeToggle.setOpaque(true);
 
+        addButton.setText("+");
+        addButton.setFocusable(false);
+        addButton.setToolTipText("Add a QModule");
+        addButton.addActionListener(e -> onAddModule.run());
+        addButton.setUI(new javax.swing.plaf.basic.BasicButtonUI());
+        addButton.setOpaque(true);
+
         // Left cluster: title + connection
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
@@ -83,6 +97,7 @@ public class HeaderBar extends JPanel {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         right.setOpaque(false);
         right.add(statusLabel);
+        right.add(addButton);
         right.add(themeToggle);
 
         add(left,  BorderLayout.WEST);
@@ -104,12 +119,14 @@ public class HeaderBar extends JPanel {
         statusLabel.setFont(theme.axisFont);
         statusLabel.setForeground(theme.axisForeground);
 
-        themeToggle.setBackground(theme.background);
-        themeToggle.setForeground(theme.foreground);
-        themeToggle.setFont(theme.axisFont.deriveFont(Font.BOLD, 13f));
-        themeToggle.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(theme.accent, 1),
-            BorderFactory.createEmptyBorder(2, 8, 2, 8)));
+        for (JButton b : new JButton[]{addButton, themeToggle}) {
+            b.setBackground(theme.background);
+            b.setForeground(theme.foreground);
+            b.setFont(theme.axisFont.deriveFont(Font.BOLD, 13f));
+            b.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.accent, 1),
+                BorderFactory.createEmptyBorder(2, 8, 2, 8)));
+        }
 
         repaint();
     }

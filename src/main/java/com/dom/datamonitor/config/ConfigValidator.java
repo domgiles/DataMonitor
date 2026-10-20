@@ -2,6 +2,7 @@ package com.dom.datamonitor.config;
 
 import com.dom.datamonitor.model.ChartType;
 import com.dom.datamonitor.model.GridLocation;
+import com.dom.datamonitor.model.GridOccupancy;
 import com.dom.datamonitor.model.ProcessingMode;
 
 import java.util.*;
@@ -80,13 +81,11 @@ public class ConfigValidator {
     private void validateQModules(List<QModuleConfig> modules,
                                   AppConfig.Settings settings,
                                   List<String> errors) {
-        if (modules == null || modules.isEmpty()) {
-            errors.add("qmodules list is required and must not be empty");
-            return;
-        }
+        // An empty dashboard is allowed: modules can be added from the UI
+        if (modules == null || modules.isEmpty()) return;
 
-        Set<String> usedCells = new HashSet<>();
         int totalColumns = (settings != null) ? settings.getColumns() : 3;
+        GridOccupancy occupancy = new GridOccupancy(totalColumns);
 
         for (int i = 0; i < modules.size(); i++) {
             QModuleConfig m = modules.get(i);
@@ -101,21 +100,14 @@ public class ConfigValidator {
             } else {
                 try {
                     GridLocation loc = GridLocation.parse(m.getGrid());
-                    // Check column bounds
-                    int effectiveEnd = (loc.colEnd() == GridLocation.SPAN_ALL)
-                        ? totalColumns : loc.colEnd();
-                    // colStart can exceed effectiveEnd for e.g. C4* on a 3-column dashboard
-                    int lastCol = Math.max(loc.colStart(), effectiveEnd);
+                    int lastCol = GridOccupancy.lastColumn(loc, totalColumns);
                     if (lastCol > totalColumns) {
                         errors.add(prefix + ".grid column " + lastCol
                             + " exceeds settings.columns (" + totalColumns + ")");
                     }
-                    // Check for duplicate cell occupation
-                    for (int c = loc.colStart(); c <= effectiveEnd; c++) {
-                        String cell = "R" + loc.row() + "C" + c;
-                        if (!usedCells.add(cell)) {
-                            errors.add(prefix + ".grid overlaps with another QModule at cell " + cell);
-                        }
+                    for (GridOccupancy.Cell cell : occupancy.occupy(loc, prefix)) {
+                        errors.add(prefix + ".grid overlaps with another QModule at cell R"
+                            + cell.row() + "C" + cell.col());
                     }
                 } catch (ConfigException e) {
                     errors.add(prefix + ".grid: " + e.getMessage());

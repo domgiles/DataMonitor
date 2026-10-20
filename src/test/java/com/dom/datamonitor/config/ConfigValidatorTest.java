@@ -71,9 +71,9 @@ class ConfigValidatorTest {
     }
 
     @Test
-    void requiresAtLeastOneModule() {
+    void allowsEmptyDashboard() {
         config.setQmodules(List.of());
-        assertTrue(errorsFor(config).contains("qmodules list is required"));
+        assertDoesNotThrow(() -> new ConfigValidator().validate(config));
     }
 
     @Test
