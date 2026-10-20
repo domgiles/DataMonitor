@@ -10,6 +10,7 @@ package com.dom.datamonitor.config;
  *   R1,C1     – row 1, column 1 only
  *   R1,C1-2   – row 1, spanning columns 1 and 2
  *   R1,C1*    – row 1, spanning all columns from 1 to maxColumns
+ *   R1-2,C3   – rows 1 and 2, column 3 (a row range combines with any column form)
  * </pre>
  *
  * <h3>SQL result format</h3>

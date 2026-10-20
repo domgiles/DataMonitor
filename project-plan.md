@@ -147,7 +147,7 @@ src/main/java/com/dom/datamonitor/
 ├── model/
 │   ├── ChartType.java                  Enum: LINE, AREA, BAR, PIE, TEXT, TABLE
 │   ├── ProcessingMode.java             Enum: NONE, DIFFERENCE, CHANGE_PER_MIN, CHANGE_PER_HOUR, CUMULATIVE_SINCE_START
-│   ├── GridLocation.java               Record: parses "R2,C1-3" grid strings; toSpec() formats them
+│   ├── GridLocation.java               Record: parses "R2,C1-3" / "R1-2,C3" grid strings; toSpec() formats them
 │   ├── GridOccupancy.java              Which cells are taken and by whom; shared by validator and location picker
 │   ├── QueryRow.java                   Record: (key, value, color)
 │   └── QueryResult.java                Immutable result; factory methods success/error
@@ -246,8 +246,12 @@ qmodules:
 | `R1,C1` | Row 1, column 1 |
 | `R2,C1-2` | Row 2, spanning columns 1 and 2 |
 | `R3,C1*` | Row 3, spanning all configured columns |
+| `R4-5,C2` | Rows 4 and 5, column 2 (a tall module) |
+| `R6-7,C1-2` | A 2 × 2 block; the row range combines with every column form |
 
-Rows and columns are 1-indexed. Rows scroll vertically; columns do not scroll.
+Rows and columns are 1-indexed. Rows scroll vertically; columns do not scroll. A single row number
+(`R1`) means one row, and `toSpec()` only writes a row range when a module spans more than one row,
+so files without multi-row modules save exactly as before.
 
 ### SQL result formats
 
@@ -314,7 +318,8 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - **Entry points:** right-click a module (Edit… / Delete… / Add QModule…), right-click empty dashboard space, or the **+** button in the header. Menus are set with `setComponentPopupMenu`; the title strip and chart use `setInheritsPopupMenu(true)` so a right-click anywhere on a module works.
 - **Delete** asks for confirmation with Cancel as the default button.
 - **Add / Edit** open `QModuleDialog`. It works on `QModuleConfig.copy()`, so Cancel changes nothing. Fields that are left at the dashboard default are saved as unset, which keeps the YAML minimal.
-- **Location:** `GridPicker` is built from `DashboardPanel.occupancyExcluding(module)`, so the module being edited can stay where it is. An extra empty row is always offered at the bottom. If the location is unchanged, the original grid text (e.g. `R2,C1*`) is kept.
+- **Location:** `GridPicker` is built from `DashboardPanel.occupancyExcluding(module)`, so the module being edited can stay where it is. An extra empty row is always offered below the last used row and the selection. Dragging selects a rectangle: `GridOccupancy.largestFreeRectangle` picks the largest free rectangle from the anchor towards the pointer, so the selection stops at taken cells (the web picker uses the same rule). If the location is unchanged, the original grid text (e.g. `R2,C1*`) is kept.
+- **Multi-row layout:** `GridOccupancy` records each placement so pickers draw a module as one block even when two modules share a title. In Swing, `DashboardPanel.applyRowSizes` gives every covered row the same minimum height and weight on the `GridBagLayout`; left to itself, GridBagLayout sizes rows from the single-row components in them, so a row covered only by multi-row modules collapsed or came out uneven. Rows that no module covers stay collapsed, as before. The web dashboard uses CSS grid row spans.
 - **SQL validation:** OK stays disabled until the current SQL and connection have validated. Any edit to either disables it again; changing the chart type only recomputes warnings. When editing, the saved SQL counts as validated until it is changed. `SqlValidator` refuses anything that is not `SELECT`/`WITH` (so Validate can never modify data), rejects a trailing `;`, runs with a 15 s timeout and a 20-row limit, rolls back afterwards, and checks the column layout matches what `QueryResultParser` supports. Cmd/Ctrl+Enter validates from the editor.
 - **Runtime changes:** `DashboardPanel.addModule / replaceModule / removeModule` keep the panel list and `config.getQmodules()` in step, re-run the GridBag layout, and start/stop executors. Untouched modules keep their panels and chart history. `replaceModule` builds the new panel before stopping the old one, so a failure changes nothing.
 - **Saving:** after every change `DashboardFrame` calls `ConfigWriter.save()`. The first save in a session copies the original to `<config>.bak`, because SnakeYAML cannot keep comments. Writes go through a temp file and an atomic move. If saving fails, the live change stays and the user is told it will be lost on exit.

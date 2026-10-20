@@ -264,7 +264,7 @@ public class DataMonitor {
 
               qmodules:
                 - title: "Tx/Sec"
-                  grid: "R1,C1"          # R<row>,C<col|col1-col2|col*>
+                  grid: "R1,C1"          # R<row|row1-row2>,C<col|col1-col2|col*>
                   chartType: TEXT        # LINE|AREA|BAR|PIE|TEXT|TABLE
                   processingMode: DIFFERENCE  # NONE|DIFFERENCE|CHANGE_PER_MIN|CHANGE_PER_HOUR|CUMULATIVE_SINCE_START
                   sql: |

@@ -5,6 +5,7 @@
 ##   R<row>,C<col>       e.g. R1,C1    → row 1, column 1
 ##   R<row>,C<col1-col2> e.g. R2,C1-2  → row 2, spanning columns 1 and 2
 ##   R<row>,C<col>*      e.g. R1,C1*   → row 1, spanning all columns
+##   R<row1-row2>,C...   e.g. R3-4,C1  → rows 3 and 4 (a tall module); combines with any column form
 ##
 ## SQL result format (per row):
 ##   Duplet:  SELECT 'label',       value  FROM ...
