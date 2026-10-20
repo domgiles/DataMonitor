@@ -46,6 +46,8 @@ ant jar         # Package build/dist/datamonitor/lib/new-data-monitor.jar
 ant dist        # clean + jar, then copy deps, launchers, sample YAML and README into build/dist/datamonitor/
 ant zip         # dist + dated archive datamonitorDDMMYYYY.zip in the project root
 ant run         # Compile and launch from the build classpath (-Dconfig=<file> to pick a config)
+ant run-web     # Same, but starts the web front end (--web); prints the access link
+                #   extra flags for either: -Dargs="--port 9090 --theme light"
 ant docs        # Generate Javadoc in docs/
 ant clean       # Delete build/ and docs/
 ant all         # clean → compile → jar
@@ -71,6 +73,8 @@ The launchers use `-cp lib/*`. The JAR manifest also carries a `Class-Path` list
 ```bash
 ant run                                  # uses ./datamonitor.yaml
 ant run -Dconfig=/path/to/other.yaml
+ant run-web                              # web front end on http://127.0.0.1:8080
+ant run-web -Dargs="--port 9090"
 build/dist/datamonitor/bin/datamonitor   # after ant dist
 build/dist/datamonitor/bin/datamonitor -c /path/to/other.yaml
 java -jar build/dist/datamonitor/lib/new-data-monitor.jar -c datamonitor.yaml

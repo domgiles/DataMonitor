@@ -188,6 +188,13 @@ Start the dashboard as a web application instead of a desktop window:
 ./bin/datamonitor --web --port 9090
 ```
 
+From a source checkout, the same with Ant:
+
+```sh
+ant run-web
+ant run-web -Dargs="--port 9090"
+```
+
 On startup it tests the database connection, then prints a link such as:
 
 ```

@@ -27,6 +27,8 @@
 
     <!-- Config file used by 'ant run'; override with -Dconfig=/path/to/file.yaml -->
     <property name="config"          value="datamonitor.yaml"/>
+    <!-- Extra command-line arguments for run / run-web, e.g. -Dargs="(flags)"; see README -->
+    <property name="args"            value=""/>
 
     <!-- Ivy bootstrap -->
     <property name="ivy.install.version" value="2.5.2"/>
@@ -235,6 +237,18 @@ java ^
             <jvmarg value="-Dswing.aatext=true"/>
             <arg value="-c"/>
             <arg file="${config}"/>
+            <arg line="${args}"/>
+        </java>
+    </target>
+
+    <target name="run-web" depends="compile" description="Run the web front end (link with access token is printed; Ctrl+C to stop)">
+        <java classname="${main.class}"
+              classpathref="runtime.classpath"
+              fork="true">
+            <arg value="-c"/>
+            <arg file="${config}"/>
+            <arg value="--web"/>
+            <arg line="${args}"/>
         </java>
     </target>
 
