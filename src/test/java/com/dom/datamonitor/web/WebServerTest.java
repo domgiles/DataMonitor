@@ -38,7 +38,7 @@ class WebServerTest {
     @BeforeEach
     void setUp(@TempDir Path dir) throws Exception {
         file = dir.resolve("dm.yaml");
-        Files.copy(Path.of("datamonitor.yaml"), file);
+        Files.copy(Path.of("src/test/resources/sample-datamonitor.yaml"), file);
         AppConfig config = ConfigLoader.load(file.toFile());
 
         // Give one module its own connection, to check the password never reaches the browser

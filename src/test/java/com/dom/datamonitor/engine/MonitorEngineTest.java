@@ -55,7 +55,7 @@ class MonitorEngineTest {
     @BeforeEach
     void setUp(@TempDir Path dir) throws Exception {
         file = dir.resolve("dm.yaml");
-        Files.copy(Path.of("datamonitor.yaml"), file);
+        Files.copy(Path.of("src/test/resources/sample-datamonitor.yaml"), file);
         config = ConfigLoader.load(file.toFile());
         engine = new MonitorEngine(config, new ConfigWriter(file.toFile()), (m, conn, mode, rate) -> {
             FakeExecutor e = new FakeExecutor();
@@ -155,7 +155,7 @@ class MonitorEngineTest {
     @Test
     void moduleConnectionIsUsedForItsExecutor(@TempDir Path dir) throws Exception {
         List<ConnectionConfig> used = new ArrayList<>();
-        AppConfig c = ConfigLoader.load(new File("datamonitor.yaml"));
+        AppConfig c = ConfigLoader.load(new File("src/test/resources/sample-datamonitor.yaml"));
         MonitorEngine e = new MonitorEngine(c, null, (m, conn, mode, rate) -> { used.add(conn); return new FakeExecutor(); });
         e.start();
         assertTrue(used.stream().allMatch(conn -> conn.getConnectString().equals("//localhost/soe")));

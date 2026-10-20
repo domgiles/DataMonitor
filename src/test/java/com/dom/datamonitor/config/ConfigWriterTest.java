@@ -15,7 +15,7 @@ class ConfigWriterTest {
 
     @Test
     void shippedSampleRoundTripsWithoutLosingAnything(@TempDir Path dir) throws Exception {
-        AppConfig original = ConfigLoader.load(new File("datamonitor.yaml"));
+        AppConfig original = ConfigLoader.load(new File("src/test/resources/sample-datamonitor.yaml"));
         File out = dir.resolve("copy.yaml").toFile();
         new ConfigWriter(out).save(original);
 
