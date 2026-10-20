@@ -20,6 +20,9 @@ import java.util.List;
  */
 public class LineChart extends BaseChart {
 
+    /** Left edge of the legend, in line with the y-axis labels. */
+    private static final int LEGEND_X = 8;
+
     private final int maxPoints;
     private final int windowSeconds;
 
@@ -87,9 +90,11 @@ public class LineChart extends BaseChart {
     @Override
     protected void paintChart(Graphics2D g2, int w, int h) {
         int pl = padLeft(), pr = padRight(), pt = padTop(), pb = padBottom();
-        int plotX = pl, plotY = pt;
+        // The legend gets its own band above the plot, so data never draws over it
+        int legendH = layoutLegend(g2, seriesKeys, seriesColors, LEGEND_X, 0, w - pr, false);
+        int plotX = pl, plotY = pt + (legendH > 0 ? legendH + 6 : 0);
         int plotW = w - pl - pr;
-        int plotH = h - pt - pb;
+        int plotH = h - plotY - pb;
 
         if (plotW < 4 || plotH < 4) return;
 
@@ -113,7 +118,7 @@ public class LineChart extends BaseChart {
         // Axes & labels
         drawYAxis(g2, plotX, plotY, plotH);
         drawXAxisLabel(g2, plotX, plotY, plotW, plotH, h);
-        drawLegend(g2, w, pt);
+        layoutLegend(g2, seriesKeys, seriesColors, LEGEND_X, pt + 10, w - pr, true);
         drawHover(g2, w, plotX, plotY, plotW, plotH);
     }
 
@@ -219,16 +224,5 @@ public class LineChart extends BaseChart {
     private String formatWindowLabel() {
         if (windowSeconds >= 60) return (windowSeconds / 60) + "m";
         return windowSeconds + "s";
-    }
-
-    private void drawLegend(Graphics2D g2, int w, int pt) {
-        if (seriesKeys.isEmpty()) return;
-        int x = padLeft() + 6;
-        int y = pt + 14;
-        for (int i = 0; i < seriesKeys.size(); i++) {
-            drawLegendEntry(g2, x, y, seriesColors.get(i), seriesKeys.get(i));
-            x += g2.getFontMetrics(theme.legendFont).stringWidth(seriesKeys.get(i)) + 28;
-            if (x > w - 80) { x = padLeft() + 6; y += 16; }
-        }
     }
 }

@@ -174,6 +174,35 @@ public abstract class BaseChart extends JPanel {
         g2.drawString(msg, x, y);
     }
 
+    private static final int LEGEND_ROW_H = 16, LEGEND_GAP = 14, LEGEND_SWATCH = 14;
+
+    /**
+     * Lays out a legend that wraps onto as many rows as it needs between {@code x0} and
+     * {@code maxX}, and draws it with its first row's baseline at {@code y} when {@code draw}
+     * is true.
+     *
+     * <p>Like the web charts, a single series gets no legend: the module title names it.
+     *
+     * @return the height the legend takes (0 when there is none), so charts can place the
+     *         plot below it instead of drawing data over the labels
+     */
+    protected int layoutLegend(Graphics2D g2, List<String> names, List<Color> colors,
+                               int x0, int y, int maxX, boolean draw) {
+        if (names.size() < 2) return 0;
+        FontMetrics fm = g2.getFontMetrics(theme.legendFont);
+        int x = x0, rows = 1;
+        for (int i = 0; i < names.size(); i++) {
+            int entryW = LEGEND_SWATCH + fm.stringWidth(names.get(i));
+            if (x > x0 && x + entryW > maxX) {
+                x = x0;
+                rows++;
+            }
+            if (draw) drawLegendEntry(g2, x, y + (rows - 1) * LEGEND_ROW_H, colors.get(i), names.get(i));
+            x += entryW + LEGEND_GAP;
+        }
+        return rows * LEGEND_ROW_H;
+    }
+
     /**
      * Draws a rounded-rectangle legend entry: coloured swatch + label.
      */
