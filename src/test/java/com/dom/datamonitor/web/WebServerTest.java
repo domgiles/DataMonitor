@@ -134,16 +134,23 @@ class WebServerTest {
         JsonObject io = d.getAsJsonArray("modules").asList().stream().map(e -> e.getAsJsonObject())
             .filter(m -> m.get("grid").getAsString().equals("R2,C1*")).findFirst().orElseThrow();
         assertEquals(3, io.get("colEnd").getAsInt());
+        assertEquals(io.get("row").getAsInt(), io.get("rowEnd").getAsInt());
     }
 
     @Test
     void addEditDeleteRoundTrip() throws Exception {
         String body = "{\"title\":\"Web added\",\"chartType\":\"BAR\",\"processingMode\":\"NONE\",\"divideBy\":1,"
-            + "\"grid\":\"R9,C1-2\",\"sql\":\"SELECT 'a', 1 FROM dual\",\"connection\":null}";
+            + "\"grid\":\"R9-10,C1-2\",\"sql\":\"SELECT 'a', 1 FROM dual\",\"connection\":null}";
         HttpResponse<String> added = request("POST", "/api/modules", body, true, null);
         assertEquals(201, added.statusCode(), added.body());
         String id = json(added).get("id").getAsString();
         assertTrue(Files.readString(file).contains("title: Web added"));
+        assertTrue(Files.readString(file).contains("grid: R9-10,C1-2"));
+
+        JsonObject multi = json(get("/api/dashboard")).getAsJsonArray("modules").asList().stream()
+            .map(e -> e.getAsJsonObject()).filter(m -> m.get("id").getAsString().equals(id)).findFirst().orElseThrow();
+        assertEquals(9, multi.get("row").getAsInt());
+        assertEquals(10, multi.get("rowEnd").getAsInt());
 
         HttpResponse<String> edited = request("PUT", "/api/modules/" + id, body.replace("Web added", "Web edited"), true, null);
         assertEquals(200, edited.statusCode(), edited.body());

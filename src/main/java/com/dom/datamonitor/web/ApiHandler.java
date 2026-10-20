@@ -162,6 +162,7 @@ class ApiHandler {
         j.addProperty("divideBy",       q.getDivideBy());
         j.addProperty("grid",           q.getGrid());
         j.addProperty("row",            m.location().row());
+        j.addProperty("rowEnd",         m.location().rowEnd());
         j.addProperty("colStart",       m.location().colStart());
         // Explicit end column: the browser never sees the "span all" sentinel (C2* → C2-3)
         j.addProperty("colEnd",         GridOccupancy.lastColumn(m.location(), columns));

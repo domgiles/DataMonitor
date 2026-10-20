@@ -43,109 +43,166 @@ function sqlEditor() {
 }
 
 // ── Grid helpers ─────────────────────────────────────────────────────────────
+// A location is {row, rowEnd, colStart, colEnd}: a rectangle of grid cells (1-based, inclusive).
 
-const spec = (loc) => (loc.colStart === loc.colEnd
-  ? `R${loc.row},C${loc.colStart}`
-  : `R${loc.row},C${loc.colStart}-${loc.colEnd}`);
+const spec = (loc) => {
+  const rows = loc.rowEnd === loc.row ? `R${loc.row}` : `R${loc.row}-${loc.rowEnd}`;
+  return loc.colStart === loc.colEnd ? `${rows},C${loc.colStart}` : `${rows},C${loc.colStart}-${loc.colEnd}`;
+};
 
-const sameLoc = (a, b) => a && b && a.row === b.row && a.colStart === b.colStart && a.colEnd === b.colEnd;
+const sameLoc = (a, b) => a && b && a.row === b.row && a.rowEnd === b.rowEnd
+  && a.colStart === b.colStart && a.colEnd === b.colEnd;
 
-/** Cells taken by every module except the one being edited: "row,col" -> title. */
+const inside = (loc, r, c) => loc && r >= loc.row && r <= loc.rowEnd && c >= loc.colStart && c <= loc.colEnd;
+
+/** Rectangle with corners a and b, each {row, col}. */
+const rect = (a, b) => ({
+  row: Math.min(a.row, b.row), rowEnd: Math.max(a.row, b.row),
+  colStart: Math.min(a.col, b.col), colEnd: Math.max(a.col, b.col),
+});
+
+/** Every module except the one being edited, plus their cells: "row,col" -> title. */
 function occupancy(modules, excludeId) {
+  const blocks = modules.filter((m) => m.id !== excludeId);
   const taken = new Map();
-  for (const m of modules) {
-    if (m.id === excludeId) continue;
-    for (let c = m.colStart; c <= m.colEnd; c++) taken.set(`${m.row},${c}`, m.title);
+  for (const m of blocks) {
+    for (let r = m.row; r <= m.rowEnd; r++) {
+      for (let c = m.colStart; c <= m.colEnd; c++) taken.set(`${r},${c}`, m.title);
+    }
   }
-  return taken;
+  return { blocks, taken };
 }
 
 function firstFree(taken, columns) {
   for (let r = 1; ; r++) {
-    for (let c = 1; c <= columns; c++) if (!taken.has(`${r},${c}`)) return { row: r, colStart: c, colEnd: c };
+    for (let c = 1; c <= columns; c++) {
+      if (!taken.has(`${r},${c}`)) return { row: r, rowEnd: r, colStart: c, colEnd: c };
+    }
   }
 }
 
 function fits(loc) {
-  for (let c = loc.colStart; c <= loc.colEnd; c++) {
-    if (c > state.columns || state.taken.has(`${loc.row},${c}`)) return false;
+  if (loc.colEnd > state.columns) return false;
+  for (let r = loc.row; r <= loc.rowEnd; r++) {
+    for (let c = loc.colStart; c <= loc.colEnd; c++) {
+      if (state.taken.has(`${r},${c}`)) return false;
+    }
   }
   return true;
+}
+
+/**
+ * The selection for a drag from anchor to target: the largest free rectangle that has the
+ * anchor as one corner and stays within the anchor-target box (closest to the target on a tie).
+ * So dragging into a taken cell stops the selection at its edge instead of overlapping.
+ */
+function bestRect(anchor, target) {
+  const dr = target.row >= anchor.row ? 1 : -1;
+  const dc = target.col >= anchor.col ? 1 : -1;
+  let best = null, bestArea = 0, bestDist = Infinity;
+  for (let r = anchor.row; dr > 0 ? r <= target.row : r >= target.row; r += dr) {
+    for (let c = anchor.col; dc > 0 ? c <= target.col : c >= target.col; c += dc) {
+      const loc = rect(anchor, { row: r, col: c });
+      if (!fits(loc)) continue;
+      const area = (loc.rowEnd - loc.row + 1) * (loc.colEnd - loc.colStart + 1);
+      const dist = Math.abs(target.row - r) + Math.abs(target.col - c);
+      if (area > bestArea || (area === bestArea && dist < bestDist)) {
+        best = loc; bestArea = area; bestDist = dist;
+      }
+    }
+  }
+  return best;
 }
 
 // ── Picker ───────────────────────────────────────────────────────────────────
 
 function renderPicker() {
-  const { taken, columns, selection } = state;
+  const { blocks, taken, columns, selection } = state;
   let maxRow = 0;
-  for (const key of taken.keys()) maxRow = Math.max(maxRow, Number(key.split(',')[0]));
-  const rows = Math.max(maxRow, selection?.row ?? 0) + 1;     // always one empty row at the bottom
+  for (const b of blocks) maxRow = Math.max(maxRow, b.rowEnd);
+  const rows = Math.max(maxRow, selection?.rowEnd ?? 0) + 1;     // always one empty row at the bottom
 
   picker.style.setProperty('--cols', columns);
   const frag = document.createDocumentFragment();
-  frag.append(cell('axis', ''));
   for (let c = 1; c <= columns; c++) {
-    const h = cell('axis', `C${c}`);
+    const h = cell('axis', `C${c}`, { row: 0, rowEnd: 0, colStart: c, colEnd: c });
     h.dataset.colHeader = c;
     frag.append(h);
   }
   for (let r = 1; r <= rows; r++) {
-    frag.append(cell('axis', `R${r}`));
-    let c = 1;
-    while (c <= columns) {
-      const owner = taken.get(`${r},${c}`);
-      if (owner !== undefined) {
-        let end = c;
-        while (end + 1 <= columns && taken.get(`${r},${end + 1}`) === owner) end++;
-        const e = cell('cell taken', owner, r, c, end);
-        e.title = owner;
-        frag.append(e);
-        c = end + 1;
-      } else if (selection && selection.row === r && c === selection.colStart) {
-        const e = cell('cell selected', spec(selection), r, c, selection.colEnd);
-        e.setAttribute('aria-selected', 'true');
-        frag.append(e);
-        c = selection.colEnd + 1;
-      } else {
-        const e = cell('cell free', '', r, c, c);
-        e.title = 'Free: click to place here, drag along the row to span';
-        frag.append(e);
-        c++;
-      }
+    const h = cell('axis', `R${r}`, { row: r, rowEnd: r, colStart: 0, colEnd: 0 });
+    h.dataset.rowHeader = r;
+    frag.append(h);
+  }
+
+  // Every element is placed explicitly, so a module spanning rows is one rounded block
+  for (const b of blocks) {
+    const e = cell('cell taken', b.title, { ...b, colEnd: Math.min(b.colEnd, columns) });
+    e.title = `${b.title} (${spec(b)})`;
+    frag.append(e);
+  }
+  if (selection) {
+    const e = cell('cell selected', spec(selection), selection);
+    e.setAttribute('aria-selected', 'true');
+    e.title = `${spec(selection)}: drag to resize`;
+    frag.append(e);
+  }
+  for (let r = 1; r <= rows; r++) {
+    for (let c = 1; c <= columns; c++) {
+      if (taken.has(`${r},${c}`) || inside(selection, r, c)) continue;
+      const e = cell('cell free', '', { row: r, rowEnd: r, colStart: c, colEnd: c });
+      e.title = `Free (R${r},C${c}): click to place here, drag to span rows and columns`;
+      frag.append(e);
     }
   }
   picker.replaceChildren(frag);
 }
 
-function cell(className, text, row, colStart, colEnd) {
+/** A picker element covering loc; row 0 / column 0 are the axis labels. */
+function cell(className, text, loc) {
   const e = document.createElement('div');
   e.className = className;
-  e.textContent = text;
-  if (row) {
-    e.dataset.row = row;
-    e.dataset.col = colStart;
-    e.style.gridRow = String(row + 1);
-    e.style.gridColumn = `${colStart + 1} / ${colEnd + 2}`;
-  }
+  const label = document.createElement('span');
+  label.textContent = text;
+  e.append(label);
+  e.dataset.row = loc.row;
+  e.dataset.col = loc.colStart;
+  e.style.gridRow = `${loc.row + 1} / ${loc.rowEnd + 2}`;
+  e.style.gridColumn = `${loc.colStart + 1} / ${loc.colEnd + 2}`;
   return e;
 }
 
-/** Column under the pointer, from the column headers' positions. */
-function colAt(clientX) {
-  for (const h of picker.querySelectorAll('[data-col-header]')) {
+/**
+ * Index of the header under the pointer along one axis. Between the headers and the picker's
+ * edge it clamps to the first / last one; outside the picker it is null (no change), so holding
+ * the pointer below the picker does not keep adding rows.
+ */
+function headerAt(selector, attr, pos, edge) {
+  const headers = [...picker.querySelectorAll(selector)];
+  if (!headers.length) return null;
+  for (const h of headers) {
     const r = h.getBoundingClientRect();
-    if (clientX >= r.left - 3 && clientX <= r.right + 3) return Number(h.dataset.colHeader);
+    if (pos >= r[edge[0]] - 3 && pos <= r[edge[1]] + 3) return Number(h.dataset[attr]);
   }
-  return null;
+  const box = picker.getBoundingClientRect();
+  if (pos < box[edge[0]] || pos > box[edge[1]]) return null;
+  const first = headers[0].getBoundingClientRect();
+  return Number((pos < first[edge[0]] ? headers[0] : headers[headers.length - 1]).dataset[attr]);
 }
+
+const cellAt = (x, y) => ({
+  row: headerAt('[data-row-header]', 'rowHeader', y, ['top', 'bottom']),
+  col: headerAt('[data-col-header]', 'colHeader', x, ['left', 'right']),
+});
 
 picker.addEventListener('pointerdown', (e) => {
   const target = e.target.closest('.free, .selected');
   if (!target) return;
-  const row = Number(target.dataset.row);
-  const col = target.classList.contains('selected') ? (colAt(e.clientX) ?? Number(target.dataset.col)) : Number(target.dataset.col);
-  state.drag = { row, anchor: col };
-  state.selection = { row, colStart: col, colEnd: col };
+  const at = target.classList.contains('selected')
+    ? cellAt(e.clientX, e.clientY)
+    : { row: Number(target.dataset.row), col: Number(target.dataset.col) };
+  state.drag = { anchor: at };
+  state.selection = rect(at, at);
   picker.setPointerCapture(e.pointerId);
   renderPicker();
   refresh();
@@ -153,17 +210,10 @@ picker.addEventListener('pointerdown', (e) => {
 
 picker.addEventListener('pointermove', (e) => {
   if (!state?.drag) return;
-  const target = colAt(e.clientX);
-  if (target === null) return;
-  const { row, anchor } = state.drag;
-  const step = target >= anchor ? 1 : -1;
-  let reach = anchor;
-  for (let c = anchor + step; step > 0 ? c <= target : c >= target; c += step) {
-    if (state.taken.has(`${row},${c}`)) break;
-    reach = c;
-  }
-  const next = { row, colStart: Math.min(anchor, reach), colEnd: Math.max(anchor, reach) };
-  if (!sameLoc(next, state.selection)) {
+  const target = cellAt(e.clientX, e.clientY);
+  if (target.row === null || target.col === null) return;
+  const next = bestRect(state.drag.anchor, target);
+  if (next && !sameLoc(next, state.selection)) {
     state.selection = next;
     renderPicker();
     refresh();
@@ -362,17 +412,17 @@ dialog.addEventListener('close', () => {
  * @param {object} opts
  * @param {object} opts.dashboard  current dashboard (settings + modules)
  * @param {object} [opts.def]      module to edit; omit to add
- * @param {object} [opts.location] initial {row, colStart, colEnd} when adding
+ * @param {object} [opts.location] initial {row, rowEnd, colStart, colEnd} when adding
  * @returns {Promise<boolean>} true if saved
  */
 export function openEditor({ dashboard, def, location }) {
   const editor = sqlEditor();
-  const taken = occupancy(dashboard.modules, def?.id);
-  const originalLoc = def ? { row: def.row, colStart: def.colStart, colEnd: def.colEnd } : null;
+  const { blocks, taken } = occupancy(dashboard.modules, def?.id);
+  const originalLoc = def ? { row: def.row, rowEnd: def.rowEnd, colStart: def.colStart, colEnd: def.colEnd } : null;
 
   state = {
     mode: def ? 'edit' : 'add',
-    def, taken, originalLoc,
+    def, blocks, taken, originalLoc,
     columns: dashboard.columns,
     selection: null,
     validatedFp: null, failedFp: null, result: null, validating: false,
