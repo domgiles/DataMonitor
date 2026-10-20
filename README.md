@@ -85,6 +85,10 @@ qmodules:
 | `R<r>,C<c>`  | `R1,C2`     | Row 1, column 2                      |
 | `R<r>,C<a-b>`| `R2,C1-2`   | Row 2, spanning columns 1 and 2      |
 | `R<r>,C<c>*` | `R1,C1*`    | Row 1, spanning all columns          |
+| `R<a-b>,C…`  | `R3-4,C1-2` | Rows 3–4 and columns 1–2 (a 2 × 2 block); the row range works with every column form |
+
+A module that spans rows is as tall as those rows plus the gaps between them. Leaving the row
+part as a single number (`R1`) keeps a module one row tall, so existing files are unchanged.
 
 #### Chart types
 
@@ -148,7 +152,7 @@ You can add, edit and delete QModules without touching the YAML file:
 The Add/Edit dialog contains:
 
 - **Module:** title, chart type, processing mode, refresh rate, window size and divide-by. Tick **Default** to use the dashboard-wide value. You can also give a module its own database connection.
-- **Location:** a miniature of the dashboard. Grey cells are taken by other modules, green cells are free, and your selection is solid green. Click a free cell, or drag along a row to span several columns. There is always an empty row at the bottom for adding a new row.
+- **Location:** a miniature of the dashboard. Grey cells are taken by other modules, green cells are free, and your selection is solid green. Click a free cell, or drag to span a rectangle of rows and columns; the selection stops at grey cells instead of overlapping them. There is always an empty row at the bottom (and below your selection), so you can drag down onto new rows.
 - **SQL:** a colour-coded editor. Press **Validate SQL** (or Cmd/Ctrl+Enter) to run the query once. The dialog checks the result has a layout the charts understand and shows a preview of the rows. **Add**/**Save** stays disabled until the SQL validates. Only `SELECT` / `WITH` queries are accepted, so validating can never change data.
 
 Every change is saved to the configuration file straight away. The first save also keeps a copy of your original file as `datamonitor.yaml.bak`. That copy keeps your comments, which the saved file does not.

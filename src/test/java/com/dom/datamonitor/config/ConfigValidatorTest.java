@@ -83,6 +83,23 @@ class ConfigValidatorTest {
     }
 
     @Test
+    void detectsOverlapWithMultiRowModuleOnce() {
+        config.getQmodules().add(module("R1-3,C2-3"));
+        config.getQmodules().add(module("R2-3,C3"));
+        String errors = errorsFor(config);
+        assertTrue(errors.contains("qmodules[3].grid overlaps with another QModule at cells R2C3, R3C3"), errors);
+        assertEquals(1, errors.split("overlaps").length - 1, errors);
+    }
+
+    @Test
+    void acceptsMultiRowModulesThatTile() {
+        config.getQmodules().add(module("R1-2,C2-3"));
+        config.getQmodules().add(module("R2-4,C1"));
+        config.getQmodules().add(module("R3,C2*"));
+        assertDoesNotThrow(() -> new ConfigValidator().validate(config));
+    }
+
+    @Test
     void detectsColumnBeyondConfiguredColumns() {
         config.getSettings().setColumns(2);
         config.getQmodules().add(module("R2,C1-3"));

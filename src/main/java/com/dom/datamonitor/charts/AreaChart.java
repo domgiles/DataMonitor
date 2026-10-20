@@ -18,6 +18,9 @@ import java.util.List;
  */
 public class AreaChart extends BaseChart {
 
+    /** Left edge of the legend, in line with the y-axis labels. */
+    private static final int LEGEND_X = 8;
+
     private final int maxPoints;
     private final int windowSeconds;
 
@@ -25,7 +28,11 @@ public class AreaChart extends BaseChart {
     private final List<Color>                seriesColors = new ArrayList<>();
     private final Map<String, ArrayDeque<Double>> data    = new LinkedHashMap<>();
 
-    private double maxStackedY = 1.0;
+    /** When each point was read (epoch ms), aligned with {@link #data}; 0 for the padding. */
+    private final ArrayDeque<Long> times = new ArrayDeque<>();
+
+    private double   maxStackedY = 1.0;
+    private double[] ticks       = niceTicks(1.0);
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -51,7 +58,10 @@ public class AreaChart extends BaseChart {
                 for (int j = 0; j < maxPoints; j++) deque.add(0.0);
                 data.put(row.key(), deque);
             }
+            for (int j = 0; j < maxPoints; j++) times.add(0L);
         }
+        if (times.size() >= maxPoints) times.pollFirst();
+        times.addLast(System.currentTimeMillis());
 
         // Push values; compute max stacked
         maxStackedY = 1.0;
@@ -85,6 +95,8 @@ public class AreaChart extends BaseChart {
             for (int s = 0; s < seriesKeys.size(); s++) sum += matrix[s][t];
             maxStackedY = Math.max(maxStackedY, sum);
         }
+        ticks       = niceTicks(maxStackedY);
+        maxStackedY = ticks[ticks.length - 1];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -92,9 +104,11 @@ public class AreaChart extends BaseChart {
     @Override
     protected void paintChart(Graphics2D g2, int w, int h) {
         int pl = padLeft(), pr = padRight(), pt = padTop(), pb = padBottom();
-        int plotX = pl, plotY = pt;
+        // The legend gets its own band above the plot, so data never draws over it
+        int legendH = layoutLegend(g2, seriesKeys, seriesColors, LEGEND_X, 0, w - pr, false);
+        int plotX = pl, plotY = pt + (legendH > 0 ? legendH + 6 : 0);
         int plotW = w - pl - pr;
-        int plotH = h - pt - pb;
+        int plotH = h - plotY - pb;
         if (plotW < 4 || plotH < 4) return;
 
         int n = data.isEmpty() ? 0 : data.values().iterator().next().size();
@@ -172,7 +186,34 @@ public class AreaChart extends BaseChart {
 
         drawYAxis(g2, plotX, plotY, plotH);
         drawXAxisLine(g2, plotX, plotY, plotW, plotH, h);
-        drawLegend(g2, w, pt);
+        layoutLegend(g2, seriesKeys, seriesColors, LEGEND_X, pt + 10, w - pr, true);
+        drawHover(g2, w, matrix, n, plotX, plotY, plotW, plotH);
+    }
+
+    @Override protected boolean showsHover() { return true; }
+
+    /**
+     * Guide line and readout at the reading nearest the pointer (none over the empty padding).
+     * Dots sit on the top edge of each band; the readout lists each series' own value and the total.
+     */
+    private void drawHover(Graphics2D g2, int w, Double[][] matrix, int n,
+                           int px, int py, int pw, int ph) {
+        int hx = hoverX();
+        if (hx < px || hx > px + pw || n < 2 || times.size() != n) return;
+        float stepX = (float) pw / (n - 1);
+        int i = Math.round((hx - px) / stepX);
+        long time = times.stream().skip(i).findFirst().orElse(0L);
+        if (time == 0) return;
+
+        List<Double> values = new ArrayList<>();
+        List<Float>  dots   = new ArrayList<>();
+        double stack = 0;
+        for (int s = 0; s < seriesKeys.size(); s++) {
+            values.add(matrix[s][i]);
+            stack += matrix[s][i];
+            dots.add(toY(stack, py, ph));
+        }
+        drawHoverReadout(g2, w, py, ph, px + i * stepX, time, seriesKeys, seriesColors, values, dots, true);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -196,8 +237,8 @@ public class AreaChart extends BaseChart {
             1f, new float[]{4f, 4f}, 0f);
         g2.setColor(theme.gridLine);
         g2.setStroke(dashed);
-        for (int i = 0; i <= 4; i++) {
-            int y = py + ph - (int) ((double) i / 4 * ph);
+        for (double tick : ticks) {
+            int y = py + ph - (int) (tick / maxStackedY * ph);
             g2.drawLine(px, y, px + pw, y);
         }
         g2.setStroke(new BasicStroke(1f));
@@ -209,10 +250,9 @@ public class AreaChart extends BaseChart {
         g2.setStroke(new BasicStroke(1f));
         g2.drawLine(px, py, px, py + ph);
         FontMetrics fm = g2.getFontMetrics();
-        for (int i = 0; i <= 4; i++) {
-            double val = maxStackedY * i / 4;
-            int y = py + ph - (int) ((double) i / 4 * ph);
-            String label = formatValue(val);
+        for (double tick : ticks) {
+            int y = py + ph - (int) (tick / maxStackedY * ph);
+            String label = formatCompact(tick);
             g2.drawString(label, px - fm.stringWidth(label) - 4, y + fm.getAscent() / 2);
         }
     }
@@ -227,14 +267,5 @@ public class AreaChart extends BaseChart {
         String right = "now →";
         g2.drawString(left, px, h - 4);
         g2.drawString(right, px + pw - g2.getFontMetrics().stringWidth(right), h - 4);
-    }
-
-    private void drawLegend(Graphics2D g2, int w, int pt) {
-        int x = padLeft() + 6, y = pt + 14;
-        for (int i = 0; i < seriesKeys.size(); i++) {
-            drawLegendEntry(g2, x, y, seriesColors.get(i), seriesKeys.get(i));
-            x += g2.getFontMetrics(theme.legendFont).stringWidth(seriesKeys.get(i)) + 28;
-            if (x > w - 80) { x = padLeft() + 6; y += 16; }
-        }
     }
 }

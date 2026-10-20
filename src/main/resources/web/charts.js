@@ -131,6 +131,7 @@ export class Card {
     this.resizeObserver = new ResizeObserver(() => {
       this.chart?.resize();
       this.spark?.resize();
+      this.fitTileValue();
     });
     this.resizeObserver.observe(this.body);
 
@@ -467,6 +468,31 @@ export class Card {
     };
   }
 
+  /**
+   * Sizes the TEXT tile's value from the space it has: half the height of its row, so a
+   * module spanning two rows gets a value about twice as big, then smaller if the text
+   * would not fit the width. A one-row tile comes out at about the old fixed 64px.
+   */
+  fitTileValue() {
+    const tile = this.body.querySelector('.tile');
+    if (!tile) return;
+    const value = tile.querySelector('.tile-value');
+    const style = getComputedStyle(tile);
+    const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const label = tile.querySelector('.tile-label');
+    const foot = tile.querySelector('.tile-foot');
+    const height = tile.clientHeight - padY - label.offsetHeight - foot.offsetHeight;
+    const width = tile.clientWidth - padX;
+    if (height <= 0 || width <= 0) return;
+
+    let size = Math.min(220, Math.max(24, height * 0.5));
+    value.style.fontSize = `${size}px`;
+    const textWidth = value.scrollWidth;
+    if (textWidth > width * 0.9) size = Math.max(16, size * (width * 0.9) / textWidth);
+    value.style.fontSize = `${size}px`;
+  }
+
   renderText(good, previous) {
     const row = good.rows[0];
     let tile = this.body.querySelector('.tile');
@@ -484,6 +510,7 @@ export class Card {
     tile.querySelector('.tile-label').textContent =
       label.trim().toLowerCase() === this.def.title.trim().toLowerCase() ? '' : label;
     tile.querySelector('.tile-value').textContent = row ? formatValue(row.value) : '–';
+    this.fitTileValue();
 
     // Change vs the previous good sample: signed and arrowed, never colour alone
     const prevRow = previous?.rows?.[0];

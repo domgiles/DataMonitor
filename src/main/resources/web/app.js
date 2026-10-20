@@ -89,12 +89,14 @@ function layout() {
 
   dashboard.modules.forEach((m, i) => {
     const card = cards.get(m.id);
-    card.el.style.gridRow = String(m.row);
+    card.el.style.gridRow = `${m.row} / ${m.rowEnd + 1}`;
     card.el.style.gridColumn = `${m.colStart} / ${m.colEnd + 1}`;
     card.el.style.setProperty('--i', i);
     items.push(card.el);
-    for (let c = m.colStart; c <= m.colEnd; c++) taken.add(`${m.row},${c}`);
-    maxRow = Math.max(maxRow, m.row);
+    for (let r = m.row; r <= m.rowEnd; r++) {
+      for (let c = m.colStart; c <= m.colEnd; c++) taken.add(`${r},${c}`);
+    }
+    maxRow = Math.max(maxRow, m.rowEnd);
   });
 
   // Empty cells inside the used rows become quiet "add here" targets
@@ -107,7 +109,7 @@ function layout() {
       slot.style.gridRow = String(r);
       slot.style.gridColumn = String(c);
       slot.innerHTML = '<span>+ Add QModule here</span>';
-      slot.addEventListener('click', () => edit(null, { row: r, colStart: c, colEnd: c }));
+      slot.addEventListener('click', () => edit(null, { row: r, rowEnd: r, colStart: c, colEnd: c }));
       items.push(slot);
     }
   }
