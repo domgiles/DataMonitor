@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Monitor</title>
+  <link rel="icon" href="/app/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/codemirror/lib/codemirror.css">
+  <link rel="stylesheet" href="/app/app.css">
+  <script src="/vendor/echarts/dist/echarts.min.js"></script>
+  <script src="/vendor/codemirror/lib/codemirror.js"></script>
+  <script src="/vendor/codemirror/mode/sql/sql.js"></script>
+  <script src="/vendor/codemirror/addon/edit/matchbrackets.js"></script>
+  <script type="module" src="/app/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <h1 id="title">Data Monitor</h1>
+      <span class="conn" id="connection"></span>
+    </div>
+    <div class="topbar-actions">
+      <span class="live" id="live" data-state="connecting"><i aria-hidden="true"></i><span>Connecting</span></span>
+      <button class="btn btn-ghost" id="add-btn" type="button" title="Add a QModule">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg><span>Add</span>
+      </button>
+      <button class="btn btn-icon" id="theme-btn" type="button" title="Toggle dark / light theme" aria-label="Toggle theme">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" class="fill"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="grid" class="grid" aria-live="polite"></main>
+
+  <!-- Context menu for a module (right-click or the ⋯ button) -->
+  <div class="menu" id="module-menu" role="menu" hidden>
+    <div class="menu-heading" id="menu-heading"></div>
+    <button type="button" role="menuitem" data-action="edit">Edit…</button>
+    <button type="button" role="menuitem" data-action="table">Show as table</button>
+    <button type="button" role="menuitem" data-action="delete" class="danger">Delete…</button>
+    <hr>
+    <button type="button" role="menuitem" data-action="add">Add QModule…</button>
+  </div>
+
+  <!-- Add / edit dialog -->
+  <dialog class="editor" id="editor">
+    <form method="dialog" id="editor-form" autocomplete="off">
+      <header class="editor-head">
+        <h2 id="editor-title">Edit QModule</h2>
+        <button type="button" class="btn btn-icon" data-close aria-label="Close">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </header>
+
+      <div class="editor-body">
+        <section class="editor-settings">
+          <h3>Module</h3>
+          <label class="field"><span>Title</span><input name="title" required maxlength="120"></label>
+          <div class="field-row">
+            <label class="field"><span>Chart</span><select name="chartType"></select></label>
+            <label class="field"><span>Processing</span><select name="processingMode"></select></label>
+          </div>
+          <label class="field">
+            <span>Refresh (s)</span>
+            <span class="with-default">
+              <input name="refreshRate" type="number" min="1" max="3600" step="1">
+              <label class="check"><input type="checkbox" name="refreshDefault"><span id="refresh-default-label">Default</span></label>
+            </span>
+          </label>
+          <label class="field" id="window-field">
+            <span>Window (s)</span>
+            <span class="with-default">
+              <input name="windowSize" type="number" min="1" max="86400" step="10">
+              <label class="check"><input type="checkbox" name="windowDefault"><span id="window-default-label">Default</span></label>
+            </span>
+          </label>
+          <label class="field"><span>Divide by</span><input name="divideBy" inputmode="decimal"></label>
+
+          <label class="check toggle"><input type="checkbox" name="ownConnection"><span>Use a different connection</span></label>
+          <fieldset class="conn-fields" id="conn-fields" disabled>
+            <label class="field"><span>Username</span><input name="connUser"></label>
+            <label class="field"><span>Password</span><input name="connPassword" type="password"></label>
+            <label class="field"><span>Connect string</span><input name="connString" placeholder="//host:1521/service"></label>
+            <label class="field"><span>Wallet (ADB)</span><input name="connWallet" placeholder="optional"></label>
+          </fieldset>
+        </section>
+
+        <section class="editor-location">
+          <h3>Location</h3>
+          <div class="picker" id="picker" role="grid" aria-label="Dashboard location"></div>
+          <p class="legend-row">
+            <span class="key key-taken"></span>taken
+            <span class="key key-free"></span>free
+            <span class="key key-selected"></span>selected <em>· drag along a row to span</em>
+          </p>
+        </section>
+
+        <section class="editor-sql">
+          <div class="sql-head">
+            <h3>SQL</h3>
+            <span class="hint">SELECT / WITH only · <kbd id="kbd-mod">Ctrl</kbd>+<kbd>Enter</kbd> validates</span>
+          </div>
+          <textarea name="sql" id="sql"></textarea>
+          <div class="validate-row">
+            <button type="button" class="btn btn-secondary" id="validate-btn">Validate SQL</button>
+            <p class="status" id="validate-status" role="status"></p>
+          </div>
+          <div class="preview" id="preview" hidden>
+            <table><thead><tr><th>Label</th><th class="num">Value</th><th>Colour</th></tr></thead><tbody></tbody></table>
+          </div>
+        </section>
+      </div>
+
+      <footer class="editor-foot">
+        <p class="form-error" id="form-error" role="alert"></p>
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="save-btn">Save</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Delete confirmation -->
+  <dialog class="confirm" id="confirm">
+    <form method="dialog">
+      <h2>Delete QModule</h2>
+      <p id="confirm-text"></p>
+      <footer>
+        <button value="cancel" class="btn btn-ghost" autofocus>Cancel</button>
+        <button value="delete" class="btn btn-danger">Delete</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Shown when the page was opened without the access token -->
+  <div class="gate" id="gate" hidden>
+    <div class="gate-card">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <h2>Access token needed</h2>
+      <p>Open the link printed on the console when the server started. It contains a one-off access token, for example:</p>
+      <code>http://localhost:8080/?token=…</code>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

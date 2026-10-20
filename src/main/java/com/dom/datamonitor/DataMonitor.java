@@ -4,7 +4,11 @@ import com.dom.datamonitor.config.AppConfig;
 import com.dom.datamonitor.config.ConfigException;
 import com.dom.datamonitor.config.ConfigLoader;
 import com.dom.datamonitor.config.ConfigValidator;
+import com.dom.datamonitor.config.ConfigWriter;
+import com.dom.datamonitor.db.ConnectionManager;
+import com.dom.datamonitor.engine.MonitorEngine;
 import com.dom.datamonitor.ui.DashboardFrame;
+import com.dom.datamonitor.web.WebServer;
 
 import javax.swing.*;
 import java.io.File;
@@ -27,6 +31,9 @@ import java.util.logging.Logger;
  *   -u, --username       Database username     } override settings.connection for this
  *   -p, --password       Database password     } run only; never written to the config
  *   --connect-string     TNS alias or //host:port/service  }
+ *   --web                Start the web front end instead of the desktop window
+ *   --port &lt;n&gt;           Web port (default 8080)
+ *   --bind &lt;address&gt;     Web listen address (default 127.0.0.1: this machine only)
  *   -h, --help           Print this help and exit
  * </pre>
  */
@@ -35,6 +42,8 @@ public class DataMonitor {
     private static final Logger log = Logger.getLogger(DataMonitor.class.getName());
 
     private static final String DEFAULT_CONFIG = "datamonitor.yaml";
+    private static final int    DEFAULT_PORT   = 8080;
+    private static final String DEFAULT_BIND   = "127.0.0.1";
     /** Read from version.properties, which the build generates from build.xml's project.version. */
     private static final String APP_VERSION    = loadVersion();
 
@@ -47,6 +56,9 @@ public class DataMonitor {
         String  username      = null;
         String  password      = null;
         String  connectString = null;
+        boolean web           = false;
+        int     port          = DEFAULT_PORT;
+        String  bind          = DEFAULT_BIND;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -69,6 +81,15 @@ public class DataMonitor {
                 case "--connect-string" -> {
                     if (i + 1 < args.length) connectString = args[++i];
                     else die("Missing value for --connect-string");
+                }
+                case "--web" -> web = true;
+                case "--port" -> {
+                    if (i + 1 < args.length) port = parsePort(args[++i]);
+                    else die("Missing value for --port");
+                }
+                case "--bind" -> {
+                    if (i + 1 < args.length) bind = args[++i];
+                    else die("Missing value for --bind");
                 }
                 case "-h", "--help" -> { printUsage(); System.exit(0); }
                 case "--version"    -> { System.out.println("New Data Monitor " + APP_VERSION); System.exit(0); }
@@ -106,13 +127,19 @@ public class DataMonitor {
             return;
         }
 
+        final File   configFile = new File(configPath);
+        final String themeName  = (themeOverride != null) ? themeOverride : config.getSettings().getTheme();
+
+        if (web) {
+            startWeb(config, configFile, themeName, bind, port);
+            return;
+        }
+
         // Configure Swing
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext",                "true");
 
         // Launch on the Event Dispatch Thread
-        final File   configFile = new File(configPath);
-        final String themeName  = (themeOverride != null) ? themeOverride : config.getSettings().getTheme();
         SwingUtilities.invokeLater(() -> {
             try {
                 DashboardFrame frame = new DashboardFrame(config, configFile, themeName);
@@ -130,6 +157,67 @@ public class DataMonitor {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Runs the dashboard headless and serves the web front end until the process is stopped.
+     * Like the desktop app, it tests the connection first and exits if the database is unreachable.
+     */
+    private static void startWeb(AppConfig config, File configFile, String themeName, String bind, int port) {
+        System.setProperty("java.awt.headless", "true");
+
+        if (config.getSettings().getEffectiveConnection() != null) {
+            System.out.println("Testing connection…");
+            try {
+                ConnectionManager.getInstance().testConnection(config.getSettings().getEffectiveConnection());
+            } catch (Exception e) {
+                System.err.println("\nCannot connect to Oracle database:\n  " + e.getMessage()
+                    + "\n\nCheck settings.connection in your config file"
+                    + " and any --username / --password / --connect-string options.\n");
+                ConnectionManager.getInstance().close();
+                System.exit(1);
+            }
+        }
+
+        MonitorEngine engine = new MonitorEngine(config, new ConfigWriter(configFile));
+        WebServer server;
+        try {
+            server = new WebServer(engine, APP_VERSION, themeName, bind, port, null);
+        } catch (IOException e) {
+            System.err.println("\nCannot start the web server on " + bind + ":" + port + ": " + e.getMessage()
+                + "\nIs another program using that port? Try --port <n>.\n");
+            System.exit(1);
+            return;
+        }
+        engine.start();
+        server.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            server.stop();
+            engine.stop();
+            ConnectionManager.getInstance().close();
+        }, "dm-shutdown"));
+
+        String host = (bind.equals("0.0.0.0") || bind.equals("::")) ? "localhost" : bind;
+        System.out.println("\nWeb dashboard running. Open this link (it contains your access token):\n\n  "
+            + "http://" + host + ":" + server.port() + "/?token=" + server.token() + "\n");
+        if (!bind.equals(DEFAULT_BIND) && !bind.equals("localhost")) {
+            System.out.println("Listening on " + bind + ": anyone who can reach this machine and has the link"
+                + "\ncan view the dashboard, edit QModules and run SELECT queries as "
+                + config.getSettings().getEffectiveConnection() + ".\n");
+        }
+        System.out.println("Press Ctrl+C to stop.");
+    }
+
+    private static int parsePort(String s) {
+        try {
+            int p = Integer.parseInt(s);
+            if (p >= 0 && p <= 65535) return p;
+        } catch (NumberFormatException ignored) {
+            // fall through
+        }
+        die("--port must be a number between 0 and 65535, got: " + s);
+        return -1;
+    }
+
     private static void printUsage() {
         System.out.println("""
             New Data Monitor - Oracle Database dashboard
@@ -144,6 +232,10 @@ public class DataMonitor {
               -u, --username <user>       Database username
               -p, --password <password>   Database password (plain, or enc:<base64>)
               --connect-string <connect>  TNS alias or //host:port/service
+              --web                       Start the web front end instead of the window
+              --port <n>                  Web port (default 8080)
+              --bind <address>            Web listen address (default 127.0.0.1, this
+                                          machine only; 0.0.0.0 for all interfaces)
               --version                   Print version and exit
               -h, --help                  Show this help
 
@@ -152,6 +244,9 @@ public class DataMonitor {
             own, e.g. keep the password out of the file and pass it with -p.
             Note: a password on the command line is visible to other users of this
             machine (e.g. via 'ps') and may be kept in your shell history.
+
+            --web prints a link containing a random access token; the web UI and its
+            API only work for browsers that opened that link.
 
             Config file format:
               settings:

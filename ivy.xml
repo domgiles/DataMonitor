@@ -48,6 +48,28 @@
                     rev="3.5.4"
                     conf="compile->default"/>
 
+        <!-- JSON for the web front end's REST API -->
+        <dependency org="com.google.code.gson"
+                    name="gson"
+                    rev="2.11.0"
+                    conf="compile->default"/>
+
+        <!--
+            Browser libraries for the web front end, packaged as WebJars so Ivy fetches them
+            like any other jar and they are served from the classpath (works offline).
+            transitive="false": only the prebuilt dist files are used.
+        -->
+        <dependency org="org.webjars.npm"
+                    name="echarts"
+                    rev="5.5.1"
+                    transitive="false"
+                    conf="compile->default"/>
+        <dependency org="org.webjars.npm"
+                    name="codemirror"
+                    rev="5.65.16"
+                    transitive="false"
+                    conf="compile->default"/>
+
         <!-- JUnit 5: the console-standalone JAR bundles Jupiter API/engine and the launcher -->
         <dependency org="org.junit.platform"
                     name="junit-platform-console-standalone"
