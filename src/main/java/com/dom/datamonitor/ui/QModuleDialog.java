@@ -362,7 +362,7 @@ public class QModuleDialog extends JDialog {
 
     private ConnectionConfig effectiveConnection() {
         ConnectionConfig own = connectionFromFields();
-        return (own != null) ? own : settings.getConnection();
+        return (own != null) ? own : settings.getEffectiveConnection();
     }
 
     /** What validation depends on: changing any of it requires validating again. */

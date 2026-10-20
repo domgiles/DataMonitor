@@ -64,18 +64,21 @@ public class ConfigValidator {
             errors.add("settings.columns must be between 1 and 3, got: " + cols);
         }
 
-        validateConnection(s.getConnection(), "settings.connection", true, errors);
+        validateConnection(s.getEffectiveConnection(), "settings.connection", true, errors);
     }
 
     private void validateConnection(ConnectionConfig conn, String path,
                                     boolean required, List<String> errors) {
+        // Only the global connection can come from the command line
+        boolean global = path.equals("settings.connection");
         if (conn == null) {
-            if (required) errors.add(path + " is required");
+            if (required) errors.add(path + " is required"
+                + (global ? " (or pass --username, --password and --connect-string)" : ""));
             return;
         }
-        if (blank(conn.getUsername()))     errors.add(path + ".username is required");
-        if (blank(conn.getPassword()))     errors.add(path + ".password is required");
-        if (blank(conn.getConnectString())) errors.add(path + ".connectString is required");
+        if (blank(conn.getUsername()))      errors.add(path + ".username is required"      + (global ? " (or pass --username)" : ""));
+        if (blank(conn.getPassword()))      errors.add(path + ".password is required"      + (global ? " (or pass --password)" : ""));
+        if (blank(conn.getConnectString())) errors.add(path + ".connectString is required" + (global ? " (or pass --connect-string)" : ""));
     }
 
     private void validateQModules(List<QModuleConfig> modules,

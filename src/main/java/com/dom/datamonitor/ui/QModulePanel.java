@@ -55,7 +55,7 @@ public class QModulePanel extends JPanel {
             ? config.getRefreshRate() : settings.getRefreshRate();
 
         ConnectionConfig connConfig = config.getConnection() != null
-            ? config.getConnection() : settings.getConnection();
+            ? config.getConnection() : settings.getEffectiveConnection();
 
         ProcessingMode mode;
         try {

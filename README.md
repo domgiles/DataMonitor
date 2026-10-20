@@ -179,3 +179,22 @@ java -jar lib/new-data-monitor.jar -c bin/datamonitor.yaml
 
 Other options: `--theme dark|light` overrides the configured theme, `--version` prints the version, `-h` shows help.
 
+### Database connection on the command line
+
+The username, password and connect string can be given on the command line instead of, or as well as, `settings.connection`:
+
+```sh
+./bin/datamonitor -u system -p welcome1 --connect-string //dbhost:1521/orclpdb
+./bin/datamonitor -p "$DB_PASSWORD"      # username and connect string still come from the YAML
+```
+
+| Option | Overrides |
+|---|---|
+| `-u`, `--username <user>` | `settings.connection.username` |
+| `-p`, `--password <password>` | `settings.connection.password` (plain text or `enc:<base64>`) |
+| `--connect-string <connect>` | `settings.connection.connectString` |
+
+Each option is independent. A value given on the command line wins over the file for that run, and it is **never written to the configuration file**, even when you edit QModules. If all three are given, the YAML doesn't need a `connection` section at all. Modules with their own `connection:` are not affected.
+
+> A password passed on the command line can be seen by other users of the machine (for example with `ps`) and may be saved in your shell history. Passing it from an environment variable, as in the second example, keeps it out of the history but not out of `ps`.
+

@@ -68,8 +68,8 @@ public class HeaderBar extends JPanel {
 
         titleLabel.setText(settings.getTitle());
 
-        if (settings.getConnection() != null) {
-            connectionLabel.setText("  ⬡  " + settings.getConnection().getConnectString());
+        if (settings.getEffectiveConnection() != null) {
+            connectionLabel.setText("  ⬡  " + settings.getEffectiveConnection().getConnectString());
         }
 
         themeToggle.setText("◑");

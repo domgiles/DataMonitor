@@ -76,7 +76,9 @@ build/dist/datamonitor/bin/datamonitor -c /path/to/other.yaml
 java -jar build/dist/datamonitor/lib/new-data-monitor.jar -c datamonitor.yaml
 ```
 
-CLI flags: `-c|--config <file>`, `--theme dark|light`, `--version`, `-h|--help`
+CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--version`, `-h|--help`
+
+`-u`, `-p` and `--connect-string` each override one field of `settings.connection` for the current run. They are stored separately (`Settings.overrideConnection`), and runtime code uses `Settings.getEffectiveConnection()`, which is the file's connection with the overrides on top. `ConfigWriter` saves `getConnection()` only, so command-line values never reach the YAML. `ConfigValidator` checks the effective connection, so a config without a `connection` section is valid when all three flags are given. Per-module connections are not overridden.
 
 ### Versioning
 
@@ -291,7 +293,7 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - **SQL validation:** OK stays disabled until the current SQL and connection have validated. Any edit to either disables it again; changing the chart type only recomputes warnings. When editing, the saved SQL counts as validated until it is changed. `SqlValidator` refuses anything that is not `SELECT`/`WITH` (so Validate can never modify data), rejects a trailing `;`, runs with a 15 s timeout and a 20-row limit, rolls back afterwards, and checks the column layout matches what `QueryResultParser` supports. Cmd/Ctrl+Enter validates from the editor.
 - **Runtime changes:** `DashboardPanel.addModule / replaceModule / removeModule` keep the panel list and `config.getQmodules()` in step, re-run the GridBag layout, and start/stop executors. Untouched modules keep their panels and chart history. `replaceModule` builds the new panel before stopping the old one, so a failure changes nothing.
 - **Saving:** after every change `DashboardFrame` calls `ConfigWriter.save()`. The first save in a session copies the original to `<config>.bak`, because SnakeYAML cannot keep comments. Writes go through a temp file and an atomic move. If saving fails, the live change stays and the user is told it will be lost on exit.
-- **`--theme` override** is passed straight to `DashboardFrame` and is never written into the config, so it cannot leak into the saved file.
+- **Command-line overrides never leak into the saved file:** `--theme` is passed straight to `DashboardFrame`, and the connection flags live in `Settings.connectionOverride`, which `ConfigWriter` does not write.
 - **Empty dashboards** are valid. `ConfigValidator` no longer requires at least one module, because modules can be added from the UI.
 
 ### Area chart colour fidelity
@@ -325,6 +327,7 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 |---|---|
 | Limited UI tests | `DashboardPanelTest` covers runtime add/replace/remove, but the dialogs and chart rendering are only checked by hand. |
 | Saving drops YAML comments | SnakeYAML cannot round-trip comments; the original is kept as `<config>.bak` on the first save of each session. |
+| Unhelpful login error | A wrong password reports `UCP-0: Unable to start the Universal Connection Pool` instead of the underlying `ORA-01017`; the startup dialog should show the root cause. |
 | Stale pool after changing a module's password | `ConnectionManager` keys pools by `username@connectString`, so editing only the password of a per-module connection keeps using the old pool until restart. |
 | No DB integration tests | `ConnectionManager` and `SQLExecutor.execute()` are only exercised against a real database. |
 | `ant run` ignores a non-zero exit | The `run` target has no `failonerror`, so a config error still reports BUILD SUCCESSFUL. |

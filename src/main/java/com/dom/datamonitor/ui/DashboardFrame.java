@@ -3,6 +3,7 @@ package com.dom.datamonitor.ui;
 import com.dom.datamonitor.charts.Theme;
 import com.dom.datamonitor.config.AppConfig;
 import com.dom.datamonitor.config.ConfigWriter;
+import com.dom.datamonitor.config.ConnectionConfig;
 import com.dom.datamonitor.config.QModuleConfig;
 import com.dom.datamonitor.db.ConnectionManager;
 
@@ -123,19 +124,18 @@ public class DashboardFrame extends JFrame implements DashboardPanel.ModuleActio
      * Shows an error dialog and exits if the database is unreachable.
      */
     private void validateConnectivity() {
-        if (config.getSettings().getConnection() == null) return;
+        ConnectionConfig conn = config.getSettings().getEffectiveConnection();
+        if (conn == null) return;
 
         headerBar.setStatusText("Testing connection…");
 
         // Run off-EDT so the UI paints first
         new Thread(() -> {
             try {
-                ConnectionManager.getInstance().testConnection(
-                    config.getSettings().getConnection());
+                ConnectionManager.getInstance().testConnection(conn);
 
                 SwingUtilities.invokeLater(() -> {
-                    headerBar.setConnectionTarget(
-                        config.getSettings().getConnection().getConnectString());
+                    headerBar.setConnectionTarget(conn.getConnectString());
                     headerBar.setStatusText("Connected");
                     dashboardPanel.startAll();
                 });
@@ -143,7 +143,8 @@ public class DashboardFrame extends JFrame implements DashboardPanel.ModuleActio
             } catch (Exception e) {
                 SwingUtilities.invokeLater(() -> {
                     String msg = "Cannot connect to Oracle database:\n\n" + e.getMessage()
-                        + "\n\nPlease check settings.connection in your config file.";
+                        + "\n\nPlease check settings.connection in your config file"
+                        + " and any --username / --password / --connect-string options.";
                     JOptionPane.showMessageDialog(DashboardFrame.this,
                         msg, "Connection Failed", JOptionPane.ERROR_MESSAGE);
                     shutdown();

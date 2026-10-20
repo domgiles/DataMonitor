@@ -19,11 +19,15 @@ import java.util.logging.Logger;
  *
  * <h3>Usage</h3>
  * <pre>
- *   java -jar new-data-monitor.jar [-c &lt;config-file&gt;] [--theme dark|light] [-h]
+ *   java -jar new-data-monitor.jar [-c &lt;config-file&gt;] [--theme dark|light]
+ *        [-u &lt;user&gt;] [-p &lt;password&gt;] [--connect-string &lt;connect&gt;] [-h]
  *
- *   -c &lt;file&gt;     Path to the YAML configuration file (default: datamonitor.yaml)
- *   --theme       Override the theme setting from the config file (dark | light)
- *   -h, --help    Print this help and exit
+ *   -c &lt;file&gt;            Path to the YAML configuration file (default: datamonitor.yaml)
+ *   --theme              Override the theme setting from the config file (dark | light)
+ *   -u, --username       Database username     } override settings.connection for this
+ *   -p, --password       Database password     } run only; never written to the config
+ *   --connect-string     TNS alias or //host:port/service  }
+ *   -h, --help           Print this help and exit
  * </pre>
  */
 public class DataMonitor {
@@ -40,6 +44,9 @@ public class DataMonitor {
         // Parse command-line arguments
         String  configPath    = DEFAULT_CONFIG;
         String  themeOverride = null;
+        String  username      = null;
+        String  password      = null;
+        String  connectString = null;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -50,6 +57,18 @@ public class DataMonitor {
                 case "--theme" -> {
                     if (i + 1 < args.length) themeOverride = args[++i];
                     else die("Missing value for --theme");
+                }
+                case "-u", "--username" -> {
+                    if (i + 1 < args.length) username = args[++i];
+                    else die("Missing value for -u / --username");
+                }
+                case "-p", "--password" -> {
+                    if (i + 1 < args.length) password = args[++i];
+                    else die("Missing value for -p / --password");
+                }
+                case "--connect-string" -> {
+                    if (i + 1 < args.length) connectString = args[++i];
+                    else die("Missing value for --connect-string");
                 }
                 case "-h", "--help" -> { printUsage(); System.exit(0); }
                 case "--version"    -> { System.out.println("New Data Monitor " + APP_VERSION); System.exit(0); }
@@ -65,6 +84,8 @@ public class DataMonitor {
         final AppConfig config;
         try {
             config = ConfigLoader.load(new File(configPath));
+            // Like --theme, these apply to this run only and are never saved to the config
+            config.getSettings().overrideConnection(username, password, connectString);
             new ConfigValidator().validate(config);
 
             // The CLI theme applies to this run only; it is not written into the config,
@@ -114,13 +135,23 @@ public class DataMonitor {
             New Data Monitor - Oracle Database dashboard
 
             Usage:
-              datamonitor [-c <config>] [--theme dark|light] [-h]
+              datamonitor [-c <config>] [--theme dark|light]
+                          [-u <user>] [-p <password>] [--connect-string <connect>] [-h]
 
             Options:
-              -c, --config <file>    YAML configuration file (default: datamonitor.yaml)
-              --theme <dark|light>   Override theme setting from config
-              --version              Print version and exit
-              -h, --help             Show this help
+              -c, --config <file>         YAML configuration file (default: datamonitor.yaml)
+              --theme <dark|light>        Override theme setting from config
+              -u, --username <user>       Database username
+              -p, --password <password>   Database password (plain, or enc:<base64>)
+              --connect-string <connect>  TNS alias or //host:port/service
+              --version                   Print version and exit
+              -h, --help                  Show this help
+
+            -u, -p and --connect-string override settings.connection for this run
+            only and are never written to the config file. Each can be used on its
+            own, e.g. keep the password out of the file and pass it with -p.
+            Note: a password on the command line is visible to other users of this
+            machine (e.g. via 'ps') and may be kept in your shell history.
 
             Config file format:
               settings:

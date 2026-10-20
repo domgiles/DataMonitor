@@ -56,6 +56,9 @@ public class AppConfig {
         private boolean          flashOnChange  = true;
         private ConnectionConfig connection;
 
+        /** Command-line connection values; applied at runtime only and never saved to YAML. */
+        private ConnectionConfig connectionOverride;
+
         public String getTitle()                    { return title;       }
         public void   setTitle(String v)            { this.title = v;     }
 
@@ -79,6 +82,34 @@ public class AppConfig {
 
         public ConnectionConfig getConnection()               { return connection;  }
         public void             setConnection(ConnectionConfig v) { this.connection = v; }
+
+        /**
+         * Overrides parts of the connection for this run (from {@code --username},
+         * {@code --password}, {@code --connect-string}). {@code null} arguments leave the
+         * value from the config file in place. Not named as a setter so SnakeYAML ignores it.
+         */
+        public void overrideConnection(String username, String password, String connectString) {
+            if (username == null && password == null && connectString == null) return;
+            ConnectionConfig o = new ConnectionConfig();
+            o.setUsername(username);
+            o.setPassword(password);
+            o.setConnectString(connectString);
+            this.connectionOverride = o;
+        }
+
+        /**
+         * The connection to use at runtime: {@code settings.connection} from the file with any
+         * command-line overrides on top. May be {@code null} if neither supplies one.
+         * {@link ConfigWriter} saves {@link #getConnection()} instead, so overrides never reach disk.
+         */
+        public ConnectionConfig getEffectiveConnection() {
+            if (connectionOverride == null) return connection;
+            ConnectionConfig c = (connection != null) ? connection.copy() : new ConnectionConfig();
+            if (connectionOverride.getUsername()      != null) c.setUsername(connectionOverride.getUsername());
+            if (connectionOverride.getPassword()      != null) c.setPassword(connectionOverride.getPassword());
+            if (connectionOverride.getConnectString() != null) c.setConnectString(connectionOverride.getConnectString());
+            return c;
+        }
 
         public boolean isDarkTheme() {
             return !"light".equalsIgnoreCase(theme);
