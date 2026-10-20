@@ -452,12 +452,17 @@ export class Card {
         type: 'pie',
         radius: ['50%', '76%'],
         center: ['30%', '52%'],
-        padAngle: 1,
         avoidLabelOverlap: true,
         label: { show: false },
-        itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 4 },
+        // Slices touch, edged in a darker shade of their own colour like the area bands.
+        // No gaps: zero-value slices would each still add one, which looks like missing pieces.
         emphasis: { scale: true, scaleSize: 4 },
-        data: rows.map((r) => ({ name: r.key, value: r.value, itemStyle: { color: this.colour(r.key, r.color) } })),
+        data: rows.map((r) => {
+          const colour = this.colour(r.key, r.color);
+          // Zero slices stay in the legend (0%) but draw nothing, not even an edge
+          return { name: r.key, value: r.value,
+                   itemStyle: { color: colour, borderColor: darken(colour, 0.4), borderWidth: r.value > 0 ? 1.5 : 0 } };
+        }),
       }],
     };
   }
