@@ -143,7 +143,7 @@ public class QModulePanel extends JPanel {
             case AREA  -> new AreaChart(theme, windowSize, refreshRate);
             case BAR   -> new BarChart(theme);
             case PIE   -> new PieChart(theme);
-            case TEXT  -> new TextDisplay(theme, settings.isFlashOnChange());
+            case TEXT  -> new TextDisplay(theme, settings.isFlashOnChange(), config.getTitle());
             case TABLE -> new TableDisplay(theme);
         };
     }

@@ -38,14 +38,18 @@ public class TextDisplay extends BaseChart {
      */
     private final boolean flashEnabled;
 
+    /** The module title, already shown in the title strip; a label repeating it is not drawn. */
+    private final String title;
+
     private float flashAlpha = 0f;
     private Color flashColor  = Color.GRAY;
 
     private Timer flashDecayTimer;
 
-    public TextDisplay(Theme theme, boolean flashEnabled) {
+    public TextDisplay(Theme theme, boolean flashEnabled, String title) {
         super(theme);
         this.flashEnabled = flashEnabled;
+        this.title        = title == null ? "" : title.trim();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -55,7 +59,9 @@ public class TextDisplay extends BaseChart {
         if (result.isEmpty()) return;
 
         QueryRow row = result.rows().get(0);
-        label       = row.key() == null ? "" : row.key();
+        // The title strip already names the module; only show the label when it adds something
+        String key  = row.key() == null ? "" : row.key();
+        label       = key.trim().equalsIgnoreCase(title) ? "" : key;
         double val  = row.value();
 
         valueText = formatValue(val);
@@ -127,6 +133,11 @@ public class TextDisplay extends BaseChart {
             size -= 2f;
         }
         return font.deriveFont(size);
+    }
+
+    /** The label drawn above the value ({@code ""} when it would repeat the title). */
+    String label() {
+        return label;
     }
 
     /** Starts the flash animation and schedules its decay. */
