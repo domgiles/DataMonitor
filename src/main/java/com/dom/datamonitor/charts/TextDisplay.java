@@ -24,6 +24,10 @@ import java.awt.geom.RoundRectangle2D;
  */
 public class TextDisplay extends BaseChart {
 
+    /** Value size as a fraction of the display height; one-row modules stay at the theme size. */
+    private static final float VALUE_HEIGHT_RATIO = 0.23f;
+    private static final float MAX_VALUE_SIZE     = 200f;
+
     private String label      = "";
     private String valueText  = "–";
     private double currentVal = Double.NaN;
@@ -97,7 +101,7 @@ public class TextDisplay extends BaseChart {
         g2.drawString(label, cx - labelFm.stringWidth(label) / 2, labelY);
 
         // Value (large, centred)
-        Font valueFont = scaledValueFont(g2, valueText, w);
+        Font valueFont = scaledValueFont(g2, valueText, w, h);
         g2.setFont(valueFont);
         g2.setColor(theme.foreground);
         FontMetrics valFm = g2.getFontMetrics();
@@ -108,11 +112,15 @@ public class TextDisplay extends BaseChart {
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Returns a version of the big-value font scaled to fit within {@code maxWidth}. */
-    private Font scaledValueFont(Graphics2D g2, String text, int maxWidth) {
+    /**
+     * Returns the big-value font sized for the display: it grows with the height (so a module
+     * spanning several rows gets a bigger value; a one-row module keeps the theme's size) and
+     * is then scaled down until the text fits within three quarters of {@code maxWidth}.
+     */
+    private Font scaledValueFont(Graphics2D g2, String text, int maxWidth, int height) {
         Font font = theme.bigValueFont;
+        float size = Math.min(MAX_VALUE_SIZE, Math.max(font.getSize2D(), height * VALUE_HEIGHT_RATIO));
         // Scale down until it fits
-        float size = font.getSize2D();
         while (size > 12) {
             FontMetrics fm = g2.getFontMetrics(font.deriveFont(size));
             if (fm.stringWidth(text) <= maxWidth * 0.75) break;
