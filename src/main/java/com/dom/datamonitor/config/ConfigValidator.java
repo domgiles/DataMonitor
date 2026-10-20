@@ -78,6 +78,9 @@ public class ConfigValidator {
         }
         if (blank(conn.getUsername()))      errors.add(path + ".username is required"      + (global ? " (or pass --username)" : ""));
         if (blank(conn.getPassword()))      errors.add(path + ".password is required"      + (global ? " (or pass --password)" : ""));
+        else if (conn.getPassword().startsWith("enc:") && !isBase64(conn.getPassword().substring(4).trim())) {
+            errors.add(path + ".password starts with 'enc:' but the rest is not valid Base64");
+        }
         if (blank(conn.getConnectString())) errors.add(path + ".connectString is required" + (global ? " (or pass --connect-string)" : ""));
     }
 
@@ -155,6 +158,15 @@ public class ConfigValidator {
             if (m.getConnection() != null) {
                 validateConnection(m.getConnection(), prefix + ".connection", false, errors);
             }
+        }
+    }
+
+    private static boolean isBase64(String s) {
+        try {
+            Base64.getDecoder().decode(s);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

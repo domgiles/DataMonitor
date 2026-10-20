@@ -146,7 +146,7 @@ src/main/java/com/dom/datamonitor/
 │   └── QueryResult.java                Immutable result; factory methods success/error
 │
 ├── db/
-│   ├── ConnectionManager.java          Singleton UCP pool manager (one pool per username@connectString)
+│   ├── ConnectionManager.java          Singleton UCP pool manager (one pool per user/connect string/password); readable ORA- errors
 │   ├── QueryResultParser.java          JDBC ResultSet → QueryResult; auto-detects duplet/triplet format
 │   ├── SQLExecutor.java                ScheduledExecutorService; processing modes; rate normalisation; divideBy
 │   └── SqlValidator.java               Editor "Validate SQL": read-only guard, column-layout check, one-off run + preview
@@ -272,7 +272,8 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 
 ### Connection pooling
 
-- `ConnectionManager` is a singleton holding a `ConcurrentHashMap<String, PoolDataSource>` keyed by `username@connectString`.
+- `ConnectionManager` is a singleton holding a `ConcurrentHashMap<String, PoolDataSource>` keyed by `username@connectString#sha256(password, wallet)`, so changed credentials get a fresh pool.
+- Connection failures are re-thrown with the underlying `ORA-` error and a short hint instead of UCP's generic `UCP-0` wrapper (`ConnectionManager.describe`).
 - Pools are created lazily on first use.
 - On shutdown, pools are destroyed via `UniversalConnectionPoolManagerImpl.getUniversalConnectionPoolManager().destroyConnectionPool(name)` — **not** via reflection. The deprecated `setConnectionWaitTimeout(int)` API is replaced with `setConnectionWaitDuration(Duration)`.
 - Passwords can be plain-text or Base64-encoded with an `enc:` prefix.
@@ -317,6 +318,9 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 | X-axis label wrong at `refreshRate > 1` | `maxPoints` was used as seconds; `maxPoints = windowSize / refreshRate` | Store and use `windowSeconds` directly |
 | Area chart colours appear brown/desaturated | Gradient spanned full plot height; lower-stack series got very low alpha | Per-band gradient + raised alpha to `(220, 150)` |
 | Theme-toggle button renders white on dark background (macOS) | Aqua L&F overrides `setBackground()` on `JButton` | Set `BasicButtonUI`; `setOpaque(true)`; `LineBorder(accent, 1)` |
+| Wrong password reported as `UCP-0: Unable to start the Universal Connection Pool` | UCP wraps every startup failure; the real `ORA-01017` was two causes down | `ConnectionManager.getConnection` re-throws with the first `ORA-` error in the chain (minus the `CONNECTION_ID`) plus a hint, e.g. "check the username and password". This applies to the startup dialog, module errors and the editor's Validate |
+| Correcting a password kept using the failed pool | Pools were keyed by `username@connectString` only | Key also includes a SHA-256 of password + wallet, so new credentials get a new pool; the key never contains the password |
+| Malformed `enc:` password gave an obscure pool-creation error | Base64 decoding only happened when the pool was created | `ConfigValidator` rejects `enc:` values that aren't valid Base64; the pool-creation error now includes the cause |
 | Grid `C4*` on a 3-column dashboard passed validation | For span-all specs the end column is clamped to `columns`, so it fell below the start and the bounds check never fired | `ConfigValidator` checks `max(colStart, effectiveEnd)` against `columns` (found by `ConfigValidatorTest`) |
 
 ---
@@ -327,8 +331,6 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 |---|---|
 | Limited UI tests | `DashboardPanelTest` covers runtime add/replace/remove, but the dialogs and chart rendering are only checked by hand. |
 | Saving drops YAML comments | SnakeYAML cannot round-trip comments; the original is kept as `<config>.bak` on the first save of each session. |
-| Unhelpful login error | A wrong password reports `UCP-0: Unable to start the Universal Connection Pool` instead of the underlying `ORA-01017`; the startup dialog should show the root cause. |
-| Stale pool after changing a module's password | `ConnectionManager` keys pools by `username@connectString`, so editing only the password of a per-module connection keeps using the old pool until restart. |
 | No DB integration tests | `ConnectionManager` and `SQLExecutor.execute()` are only exercised against a real database. |
 | `ant run` ignores a non-zero exit | The `run` target has no `failonerror`, so a config error still reports BUILD SUCCESSFUL. |
 | `loadFromResource` differs from `load` | Only `load(File)` rejects duplicate YAML keys. |

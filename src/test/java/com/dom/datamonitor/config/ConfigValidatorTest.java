@@ -96,6 +96,15 @@ class ConfigValidatorTest {
     }
 
     @Test
+    void rejectsEncodedPasswordThatIsNotBase64() {
+        config.getSettings().getConnection().setPassword("enc:not*base64!");
+        assertTrue(errorsFor(config).contains("settings.connection.password starts with 'enc:'"));
+
+        config.getSettings().getConnection().setPassword("enc:dGlnZXI=");
+        assertDoesNotThrow(() -> new ConfigValidator().validate(config));
+    }
+
+    @Test
     void validatesModuleConnectionOnlyWhenPresent() {
         ConnectionConfig partial = new ConnectionConfig();
         partial.setUsername("other");
