@@ -88,7 +88,7 @@ DataMonitor/bin/datamonitorweb --port 9090
 java -jar build/datamonitor.jar -c datamonitor.yaml
 ```
 
-CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--port <n>`, `--bind <address>`, `--version`, `-h|--help`
+CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--port <n>`, `--bind <address>`, `--encrypt [password]`, `--version`, `-h|--help`
 
 `-u`, `-p` and `--connect-string` each override one field of `settings.connection` for the current run. They are stored separately (`Settings.overrideConnection`), and runtime code uses `Settings.getEffectiveConnection()`, which is the file's connection with the overrides on top. `ConfigWriter` saves `getConnection()` only, so command-line values never reach the YAML. `ConfigValidator` checks the effective connection, so a config without a `connection` section is valid when all three flags are given. Per-module connections are not overridden.
 
@@ -222,7 +222,7 @@ settings:
   flashOnChange: true            # Flash glow ring on TEXT tiles on change (default: true)
   connection:
     username: system
-    password: welcome1           # Plain text, or enc:<base64> for encoded passwords
+    password: welcome1           # Encrypted in the file, as enc(...), on first load
     connectString: //localhost/soe   # EZConnect: //host:port/service, or TNS alias
     # credentialsFile: /path/to/wallet   # For Oracle Autonomous Database (mTLS wallet)
 ```
@@ -312,7 +312,7 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - Connection failures are re-thrown with the underlying `ORA-` error and a short hint instead of UCP's generic `UCP-0` wrapper (`ConnectionManager.describe`).
 - Pools are created lazily on first use.
 - On shutdown, pools are destroyed via `UniversalConnectionPoolManagerImpl.getUniversalConnectionPoolManager().destroyConnectionPool(name)` — **not** via reflection. The deprecated `setConnectionWaitTimeout(int)` API is replaced with `setConnectionWaitDuration(Duration)`.
-- Passwords can be plain-text or Base64-encoded with an `enc:` prefix.
+- Passwords are stored as `enc(...)`: AES-GCM with a random IV and a key built into the app (`PasswordCipher`). That hides them but isn't protection from someone who has the app. At startup `ConfigWriter.encryptPlainPasswords` rewrites any plain-text or old `enc:<base64>` value in place. It finds `password` values with SnakeYAML's node tree, so comments survive and SQL is never touched. The editors save through `PasswordCipher.protect`, and `--encrypt` prints a value for hand-edited configs. `bin/datamonitor --encrypt` runs the jar directly because the launcher's child JVM has no terminal to prompt on.
 
 ### Theme system
 

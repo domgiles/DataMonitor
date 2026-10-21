@@ -25,7 +25,7 @@ settings:
   flashOnChange: false  # flash glow ring on TEXT tiles when value changes (true | false)
   connection:
     username: system
-    password: welcome1      # or enc:<base64-encoded-password>
+    password: welcome1      # encrypted in the file, as enc(...), on first load
     connectString: //localhost/soe        # TNS alias or //host:port/service
     # credentialsFile: /path/to/wallet   # ADB only
 

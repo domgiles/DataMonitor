@@ -2,12 +2,18 @@ package com.dom.datamonitor.config;
 
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.Mark;
+import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.NodeTuple;
+import org.yaml.snakeyaml.nodes.ScalarNode;
+import org.yaml.snakeyaml.nodes.SequenceNode;
 import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.representer.Representer;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +44,60 @@ public class ConfigWriter {
 
     public ConfigWriter(File configFile) {
         this.configPath = configFile.toPath().toAbsolutePath();
+    }
+
+    /**
+     * Encrypts, in the file itself, every {@code password:} value that is plain text or in the
+     * old {@code enc:<base64>} form, so passwords are never left readable on disk. Only those
+     * values change, to {@code enc(...)}; the rest of the file, comments included, is kept as
+     * written. The values are found with SnakeYAML, so text that merely looks like
+     * {@code password:} (inside SQL, say) is never touched.
+     *
+     * @return how many passwords were encrypted; 0 leaves the file untouched
+     */
+    public static int encryptPlainPasswords(File configFile) throws IOException {
+        Path path = configFile.toPath().toAbsolutePath();
+        String text = Files.readString(path, StandardCharsets.UTF_8);
+        Node root = new Yaml().compose(new StringReader(text));
+
+        List<ScalarNode> found = new ArrayList<>();
+        collectPasswords(root, found);
+        String[] lines = text.split("\n", -1);        // a \r stays at the end of its line
+        int changed = 0;
+        // Last first, so earlier positions on the same line stay valid
+        for (int i = found.size() - 1; i >= 0; i--) {
+            ScalarNode v = found.get(i);
+            if (v.getValue().isEmpty() || PasswordCipher.isEncrypted(v.getValue())) continue;
+            Mark from = v.getStartMark(), to = v.getEndMark();
+            if (from.getLine() != to.getLine()) continue; // multi-line scalar: leave it alone
+            String line = lines[from.getLine()];
+            int a = line.offsetByCodePoints(0, from.getColumn());
+            int b = line.offsetByCodePoints(0, to.getColumn());
+            lines[from.getLine()] = line.substring(0, a) + PasswordCipher.protect(v.getValue()) + line.substring(b);
+            changed++;
+        }
+        if (changed == 0) return 0;
+
+        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+        Files.writeString(tmp, String.join("\n", lines), StandardCharsets.UTF_8);
+        Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        return changed;
+    }
+
+    /** Adds every scalar value whose key is {@code password}, in file order. */
+    private static void collectPasswords(Node node, List<ScalarNode> found) {
+        if (node instanceof MappingNode map) {
+            for (NodeTuple t : map.getValue()) {
+                if (t.getKeyNode() instanceof ScalarNode k && k.getValue().equals("password")
+                        && t.getValueNode() instanceof ScalarNode v) {
+                    found.add(v);
+                } else {
+                    collectPasswords(t.getValueNode(), found);
+                }
+            }
+        } else if (node instanceof SequenceNode seq) {
+            for (Node n : seq.getValue()) collectPasswords(n, found);
+        }
     }
 
     /** Path of the backup created on the first {@link #save}. */
@@ -113,7 +173,7 @@ public class ConfigWriter {
         if (c == null) return null;
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("username",      c.getUsername());
-        m.put("password",      c.getPassword());
+        m.put("password",      PasswordCipher.protect(c.getPassword()));
         m.put("connectString", c.getConnectString());
         putIfSet(m, "credentialsFile", c.getCredentialsFile());
         return m;

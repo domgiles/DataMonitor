@@ -1,6 +1,7 @@
 package com.dom.datamonitor.db;
 
 import com.dom.datamonitor.config.ConnectionConfig;
+import com.dom.datamonitor.config.PasswordCipher;
 import oracle.ucp.jdbc.PoolDataSource;
 import oracle.ucp.jdbc.PoolDataSourceFactory;
 
@@ -9,7 +10,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.regex.Pattern;
 import java.util.Map;
@@ -28,8 +28,8 @@ import java.util.logging.Logger;
  * <p>Connection failures are re-thrown with the underlying Oracle error (e.g.
  * {@code ORA-01017}) instead of UCP's generic {@code UCP-0} wrapper; see {@link #describe}.
  *
- * <p>Passwords may be stored as plain text or Base-64 encoded with an {@code enc:}
- * prefix (e.g. {@code enc:bXlwYXNzd29yZA==}).
+ * <p>Passwords may be stored as plain text, encrypted as {@code enc(...)}, or in the older
+ * Base-64 {@code enc:} form; see {@link PasswordCipher}.
  */
 public class ConnectionManager implements AutoCloseable {
 
@@ -140,16 +140,9 @@ public class ConnectionManager implements AutoCloseable {
     // Utilities
     // -------------------------------------------------------------------------
 
-    /**
-     * Decodes a password that may be plain-text or Base-64-encoded with an {@code enc:} prefix.
-     */
+    /** The plain-text password for a stored value: plain, {@code enc(...)} or {@code enc:<base64>}. */
     static String decodePassword(String raw) {
-        if (raw == null) return "";
-        if (raw.startsWith("enc:")) {
-            byte[] decoded = Base64.getDecoder().decode(raw.substring(4).trim());
-            return new String(decoded, StandardCharsets.UTF_8);
-        }
-        return raw;
+        return PasswordCipher.reveal(raw);
     }
 
     /**
@@ -157,7 +150,7 @@ public class ConnectionManager implements AutoCloseable {
      * gets a new pool while the key (which may be logged) never contains the password itself.
      */
     static String poolKey(ConnectionConfig config) {
-        return label(config) + "#" + sha256(config.getPassword() + "\u0000" + config.getCredentialsFile());
+        return label(config) + "#" + sha256(decodePassword(config.getPassword()) + "\u0000" + config.getCredentialsFile());
     }
 
     /** Human-readable {@code username@connectString}, for logs and messages. */

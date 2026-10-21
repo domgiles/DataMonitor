@@ -79,7 +79,8 @@ class ConnectionOverrideTest {
 
         String yaml = ConfigWriter.toYaml(config);
         assertFalse(yaml.contains("cli_"), yaml);
-        assertTrue(yaml.contains("password: file_pw"), yaml);
+        assertFalse(yaml.contains("file_pw"), "saved encrypted: " + yaml);
+        assertEquals("file_pw", PasswordCipher.reveal(yaml.replaceAll("(?s).*password: (\\S+).*", "$1")));
     }
 
     @Test

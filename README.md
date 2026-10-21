@@ -47,10 +47,16 @@ All configuration lives in `bin/datamonitor.yaml`.
 settings:
   connection:
     username: system
-    password: welcome1               # plain text, or enc:<base64> for encrypted
+    password: welcome1               # encrypted in this file on first load
     connectString: //localhost/XEPDB1  # TNS alias or //host:port/service
     # credentialsFile: /path/to/wallet  # ADB mTLS wallet directory
 ```
+
+Passwords are never left in plain text. Type one into the file and Data Monitor encrypts it there when it loads the file, for example `password: welcome1` becomes `password: enc(iy8gA6J1mqsFX7Dc…)`. Only the password values change; the rest of the file and its comments stay as you wrote them. Passwords entered in the editors are saved encrypted too. The older `enc:<base64>` form is still read and is upgraded the same way.
+
+To prepare a config without ever writing the password down, run `./bin/datamonitor --encrypt`. It prompts for the password twice without showing it and prints the `enc(...)` value to paste in.
+
+> The encryption key is built into Data Monitor, so the config can be copied to another machine. This keeps passwords out of sight, for example on a screen share or in a config sent to a colleague, but anyone with Data Monitor can decrypt them. Keep the file readable only by you, or leave the password out and pass it with `-p`.
 
 ### Dashboard settings
 
@@ -244,7 +250,7 @@ The username, password and connect string can be given on the command line inste
 | Option | Overrides |
 |---|---|
 | `-u`, `--username <user>` | `settings.connection.username` |
-| `-p`, `--password <password>` | `settings.connection.password` (plain text or `enc:<base64>`) |
+| `-p`, `--password <password>` | `settings.connection.password` (plain text or `enc(...)`) |
 | `--connect-string <connect>` | `settings.connection.connectString` |
 
 Each option is independent. A value given on the command line wins over the file for that run, and it is **never written to the configuration file**, even when you edit QModules. If all three are given, the YAML doesn't need a `connection` section at all. Modules with their own `connection:` are not affected.
