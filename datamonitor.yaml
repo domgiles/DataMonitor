@@ -1,9 +1,11 @@
-## New Data Monitor - Sample Configuration
+## Data Monitor - Sample Configuration
 ##
 ## Grid spec:  R<row>,C<col>  e.g. R1,C1 · R2,C1-2 (columns 1-2) · R1,C1* (all columns)
 ##             R3-4,C1-2      rows 3-4 and columns 1-2 (a 2 x 2 block)
 ## SQL rows:   SELECT 'label', value ...  or  SELECT 'label', 'colour', value ...
 ##             (one row per series; use UNION ALL for several)
+## Password:   type it in plain text and it's encrypted here, as enc(...), when the
+##             file is loaded; or run 'datamonitor --encrypt' and paste the result
 ## Modules can also be added, edited and moved from the app; saving rewrites this
 ## file without comments (the previous version is kept as datamonitor.yaml.bak).
 
@@ -17,7 +19,7 @@ settings:
   flashOnChange: false
   connection:
     username: system
-    password: welcome1
+    password: enc(FiwUYb4OTYHdp_JNN5SrabLoY7C_xv4iKbKBAKxYI1SCUOzS)
     connectString: //localhost/soe
 qmodules:
   - title: Tx/Sec
@@ -63,8 +65,8 @@ qmodules:
     grid: R3,C1-2
     chartType: AREA
     processingMode: DIFFERENCE
-    refreshRate: 2
-    windowSize: 120
+    refreshRate: 1
+    windowSize: 240
     sql: |
       SELECT v$system_event.wait_class,
                   case
