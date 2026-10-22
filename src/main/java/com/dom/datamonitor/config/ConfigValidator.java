@@ -80,6 +80,12 @@ public class ConfigValidator {
         if (blank(conn.getPassword()))      errors.add(path + ".password is required"      + (global ? " (or pass --password)" : ""));
         else if (conn.getPassword().startsWith("enc:") && !isBase64(conn.getPassword().substring(4).trim())) {
             errors.add(path + ".password starts with 'enc:' but the rest is not valid Base64");
+        } else {
+            try {
+                PasswordCipher.reveal(conn.getPassword());
+            } catch (IllegalArgumentException e) {
+                errors.add(path + ".password: " + e.getMessage());
+            }
         }
         if (blank(conn.getConnectString())) errors.add(path + ".connectString is required" + (global ? " (or pass --connect-string)" : ""));
     }

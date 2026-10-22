@@ -42,31 +42,39 @@ ant resolve     # Download dependencies via Ivy (auto-run by compile)
 ant compile     # Compile all sources to build/classes/
 ant compile.test  # Compile src/test/java to build/test-classes/
 ant test        # Run all JUnit 5 tests (reports in build/test-reports/); fails the build on any failure
-ant jar         # Package build/dist/datamonitor/lib/new-data-monitor.jar
-ant dist        # clean + jar, then copy deps, launchers, sample YAML and README into build/dist/datamonitor/
-ant zip         # dist + dated archive datamonitorDDMMYYYY.zip in the project root
+ant jar         # Package build/datamonitor.jar: the app and all runtime libraries in one JAR
+ant dist        # clean + jar, then assemble the DataMonitor/ distribution directory (git-ignored)
+ant zip         # dist + dated archive datamonitorDDMMYYYY.zip (containing DataMonitor/) in the project root
 ant run         # Compile and launch from the build classpath (-Dconfig=<file> to pick a config)
 ant run-web     # Same, but starts the web front end (--web); prints the access link
                 #   extra flags for either: -Dargs="--port 9090 --theme light"
 ant docs        # Generate Javadoc in docs/
-ant clean       # Delete build/ and docs/
+ant clean       # Delete build/, docs/ and DataMonitor/
 ant all         # clean → compile → jar
 ```
 
 ### Distribution layout (`ant dist`)
 
 ```
-build/dist/datamonitor/
+DataMonitor/
 ├── bin/
-│   ├── datamonitor          Unix/macOS launcher (passes -c bin/datamonitor.yaml)
-│   ├── datamonitor.bat      Windows launcher
-│   └── datamonitor.yaml     Sample config
-├── lib/                     new-data-monitor.jar + all dependency JARs
-├── log/
+│   ├── datamonitor          desktop dashboard (macOS / Linux)
+│   ├── datamonitorweb       web dashboard
+│   └── datamonitor.yaml     sample config (copied from ./datamonitor.yaml)
+├── winbin/
+│   ├── datamonitor.bat
+│   └── datamonitorweb.bat
+├── launcher/                Apache Commons Launcher: LauncherBootstrap, commons-launcher.jar,
+│                            launcher.properties, launcher.xml (one target per command)
+├── lib/
+│   ├── datamonitor.jar      app + all runtime libraries (single JAR)
+│   └── launcher/            Ant 1.6.2 + Xerces, needed by Commons Launcher only
 └── README.md
 ```
 
-The launchers use `-cp lib/*`. The JAR manifest also carries a `Class-Path` listing every runtime JAR by file name (generated from `lib/runtime/` at build time), so `java -jar lib/new-data-monitor.jar` works too, as long as the dependency JARs sit beside it.
+Everything except the JAR, the sample config and the README comes from `src/dist/`. The launcher files are copied from the swingbench distribution (Commons Launcher 1.1 is not on Maven Central), the same set swingbench uses. Each script `cd`s to `bin/` and runs `java -cp ../launcher LauncherBootstrap -executablename <name> <name> "$@"`; the `launch` target in `launcher.xml` starts a child JVM with `lib/*.jar` on the classpath, the JVM options and (for `datamonitorweb`) `--web`, followed by the user's options. Stopping the launcher also stops the child.
+
+`build/datamonitor.jar` is built by unpacking `lib/runtime/*.jar` (dropping their manifests, signatures and `module-info.class`) and jarring them with the app classes. No dependency is signed and only ojdbc17 has `META-INF/services` entries, so nothing clashes; the manifest sets `Multi-Release: true` for SnakeYAML's Java 9+ classes. The web front end's ECharts and CodeMirror files are found inside it as before.
 
 ### Running
 
@@ -75,12 +83,12 @@ ant run                                  # uses ./datamonitor.yaml
 ant run -Dconfig=/path/to/other.yaml
 ant run-web                              # web front end on http://127.0.0.1:8080
 ant run-web -Dargs="--port 9090"
-build/dist/datamonitor/bin/datamonitor   # after ant dist
-build/dist/datamonitor/bin/datamonitor -c /path/to/other.yaml
-java -jar build/dist/datamonitor/lib/new-data-monitor.jar -c datamonitor.yaml
+DataMonitor/bin/datamonitor              # after ant dist
+DataMonitor/bin/datamonitorweb --port 9090
+java -jar build/datamonitor.jar -c datamonitor.yaml
 ```
 
-CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--port <n>`, `--bind <address>`, `--version`, `-h|--help`
+CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--port <n>`, `--bind <address>`, `--encrypt [password]`, `--version`, `-h|--help`
 
 `-u`, `-p` and `--connect-string` each override one field of `settings.connection` for the current run. They are stored separately (`Settings.overrideConnection`), and runtime code uses `Settings.getEffectiveConnection()`, which is the file's connection with the overrides on top. `ConfigWriter` saves `getConnection()` only, so command-line values never reach the YAML. `ConfigValidator` checks the effective connection, so a config without a `connection` section is valid when all three flags are given. Per-module connections are not overridden.
 
@@ -214,7 +222,7 @@ settings:
   flashOnChange: true            # Flash glow ring on TEXT tiles on change (default: true)
   connection:
     username: system
-    password: welcome1           # Plain text, or enc:<base64> for encoded passwords
+    password: welcome1           # Encrypted in the file, as enc(...), on first load
     connectString: //localhost/soe   # EZConnect: //host:port/service, or TNS alias
     # credentialsFile: /path/to/wallet   # For Oracle Autonomous Database (mTLS wallet)
 ```
@@ -304,7 +312,7 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - Connection failures are re-thrown with the underlying `ORA-` error and a short hint instead of UCP's generic `UCP-0` wrapper (`ConnectionManager.describe`).
 - Pools are created lazily on first use.
 - On shutdown, pools are destroyed via `UniversalConnectionPoolManagerImpl.getUniversalConnectionPoolManager().destroyConnectionPool(name)` — **not** via reflection. The deprecated `setConnectionWaitTimeout(int)` API is replaced with `setConnectionWaitDuration(Duration)`.
-- Passwords can be plain-text or Base64-encoded with an `enc:` prefix.
+- Passwords are stored as `enc(...)`: AES-GCM with a random IV and a key built into the app (`PasswordCipher`). That hides them but isn't protection from someone who has the app. At startup `ConfigWriter.encryptPlainPasswords` rewrites any plain-text or old `enc:<base64>` value in place. It finds `password` values with SnakeYAML's node tree, so comments survive and SQL is never touched. The editors save through `PasswordCipher.protect`, and `--encrypt` prints a value for hand-edited configs. `bin/datamonitor --encrypt` runs the jar directly because the launcher's child JVM has no terminal to prompt on.
 
 ### Theme system
 

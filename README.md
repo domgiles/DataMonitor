@@ -1,40 +1,41 @@
 # Data Monitor
 
-A lightweight Oracle Database dashboard that displays live metrics as configurable panels.
-Each panel (QModule) runs a SQL query on a configurable schedule and renders the result
-as one of six chart types arranged on a grid.
+Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of panels (I call them QModules), each one runs a SQL query every few seconds and shows the result as a chart, a table or a single big number. It runs as a desktop app or in a browser.
 
 ## Requirements
 
-- Java 17 or later
-- Oracle Database (any edition; tested against 19c and 23ai)
-- Network access to the database from the machine running the dashboard
-- For Autonomous Database (ADB): a wallet credentials file
+* Java 17 or later
+* An Oracle Database (any edition, I've tested it against 19c and 23ai)
+* For Autonomous Database you'll need the wallet
 
 ## Installation
 
-Unzip the distribution archive and edit the configuration file:
+Unzip the download. You'll get this:
 
 ```
-datamonitor24022026.zip
-└── datamonitor/
-    ├── bin/
-    │   ├── datamonitor          ← Unix/macOS launcher
-    │   ├── datamonitor.bat      ← Windows launcher
-    │   └── datamonitor.yaml     ← configuration (edit this)
-    ├── lib/                     ← JARs (do not modify)
-    └── log/                     ← log output
+DataMonitor/
+├── bin/
+│   ├── datamonitor          desktop version (macOS/Linux)
+│   ├── datamonitorweb       web version (macOS/Linux)
+│   └── datamonitor.yaml     the config file
+├── winbin/
+│   ├── datamonitor.bat      desktop version (Windows)
+│   └── datamonitorweb.bat   web version (Windows)
+├── lib/
+│   ├── datamonitor.jar      the app and all of its libraries
+│   └── launcher/            used by the launcher, leave alone
+└── launcher/                Apache Commons Launcher (JVM settings are in launcher.xml)
 ```
 
-On Unix/macOS make sure the launcher is executable (it should already be, but if not):
+The scripts in `bin` should already be executable. If they aren't
 
 ```sh
-chmod +x bin/datamonitor
+chmod +x bin/datamonitor bin/datamonitorweb
 ```
 
 ## Configuration
 
-All configuration lives in `bin/datamonitor.yaml`.
+Everything is in `bin/datamonitor.yaml`.
 
 ### Connection
 
@@ -42,204 +43,202 @@ All configuration lives in `bin/datamonitor.yaml`.
 settings:
   connection:
     username: system
-    password: welcome1               # plain text, or enc:<base64> for encrypted
-    connectString: //localhost/XEPDB1  # TNS alias or //host:port/service
-    # credentialsFile: /path/to/wallet  # ADB mTLS wallet directory
+    password: welcome1                   # encrypted the first time the file is loaded
+    connectString: //localhost/XEPDB1    # TNS alias or //host:port/service
+    # credentialsFile: /path/to/wallet   # ADB only
 ```
+
+Passwords aren't left in clear text. If you type one into the file, Data Monitor encrypts it the next time it starts, so `password: welcome1` becomes something like `password: enc(iy8gA6J1mqsFX7Dc...)`. Nothing else in the file is touched, comments included. Passwords entered in the editors are saved encrypted as well. Older configs that use `enc:<base64>` still work and get upgraded in the same way.
+
+If you'd rather not type the password into the file at all, run
+
+```sh
+./bin/datamonitor --encrypt
+```
+
+It asks for the password twice (without echoing it) and prints the `enc(...)` value for you to paste in.
+
+The key used for the encryption is built into Data Monitor, which means you can copy a config to another machine and it'll still work. The flip side is that anyone with a copy of Data Monitor could decrypt it. It stops passwords being visible on a screen share or in a config you send to someone, but if that's not enough, keep the file readable only by you or leave the password out and use `-p`.
 
 ### Dashboard settings
 
-| Key            | Default | Description                                          |
-|----------------|---------|------------------------------------------------------|
-| `title`        | `Data Monitor` | Window title bar text                         |
-| `theme`        | `dark`  | `dark` or `light`                                    |
-| `refreshRate`  | `5`     | Global query interval in seconds (overridable per QModule) |
-| `windowSize`   | `120`   | Seconds of history shown on LINE and AREA charts     |
-| `columns`      | `3`     | Dashboard grid columns (1–3)                         |
-| `border`       | `8`     | Pixel gap between QModule panels                     |
-| `flashOnChange`| `true`  | Flash TEXT tiles when their value changes            |
+| Key | Default | What it does |
+|---|---|---|
+| `title` | `Data Monitor` | Window title |
+| `theme` | `dark` | `dark` or `light` |
+| `refreshRate` | `5` | How often queries run, in seconds. Can be overridden per QModule |
+| `windowSize` | `120` | Seconds of history shown on LINE and AREA charts |
+| `columns` | `3` | Number of grid columns (1 to 3) |
+| `border` | `8` | Gap between panels, in pixels |
+| `flashOnChange` | `true` | Flash TEXT panels when their value changes |
 
 ### QModules
 
-Each entry under `qmodules:` defines one panel:
+Each entry under `qmodules:` is one panel.
 
 ```yaml
 qmodules:
   - title: "Active Sessions"
-    grid: "R1,C2"          # position on the grid
+    grid: "R1,C2"          # where it goes
     chartType: TEXT        # TEXT | LINE | AREA | BAR | PIE | TABLE
     processingMode: NONE   # NONE | DIFFERENCE | CHANGE_PER_MIN | CHANGE_PER_HOUR | CUMULATIVE_SINCE_START
-    refreshRate: 2         # seconds (overrides global)
+    refreshRate: 2         # seconds, overrides the global setting
     windowSize: 120        # seconds of history (LINE/AREA only)
-    divideBy: 1048576      # optional divisor applied to all values
+    divideBy: 1048576      # optional, every value is divided by this
     sql: |
       SELECT 'Active Sessions', count(*)
       FROM v$session
       WHERE status = 'ACTIVE' AND type = 'USER'
 ```
 
-#### Grid spec
+#### Grid
 
-| Format       | Example     | Meaning                              |
-|--------------|-------------|--------------------------------------|
-| `R<r>,C<c>`  | `R1,C2`     | Row 1, column 2                      |
-| `R<r>,C<a-b>`| `R2,C1-2`   | Row 2, spanning columns 1 and 2      |
-| `R<r>,C<c>*` | `R1,C1*`    | Row 1, spanning all columns          |
-| `R<a-b>,C…`  | `R3-4,C1-2` | Rows 3–4 and columns 1–2 (a 2 × 2 block); the row range works with every column form |
+| Format | Example | Meaning |
+|---|---|---|
+| `R<r>,C<c>` | `R1,C2` | Row 1, column 2 |
+| `R<r>,C<a-b>` | `R2,C1-2` | Row 2, across columns 1 and 2 |
+| `R<r>,C<c>*` | `R1,C1*` | Row 1, across every column |
+| `R<a-b>,C...` | `R3-4,C1-2` | Rows 3 and 4, columns 1 and 2 (a 2x2 block) |
 
-A module that spans rows is as tall as those rows plus the gaps between them. Leaving the row
-part as a single number (`R1`) keeps a module one row tall, so existing files are unchanged.
+A row range works with any of the column forms. A panel that covers more than one row is as tall as those rows plus the gaps between them.
 
 #### Chart types
 
-| Type    | Best for                                      |
-|---------|-----------------------------------------------|
-| `TEXT`  | Single KPI value displayed large              |
-| `LINE`  | One or more time-series lines                 |
-| `AREA`  | Stacked or overlapping filled time-series     |
-| `BAR`   | Comparative bar chart, refreshed each cycle   |
-| `PIE`   | Proportional distribution                     |
-| `TABLE` | Tabular data (label / value rows)             |
+* `TEXT` a single value shown large, with a small trend line underneath
+* `LINE` one or more series over time
+* `AREA` filled series over time
+* `BAR` a bar per row, redrawn each refresh
+* `PIE` shares of a total
+* `TABLE` label/value rows
 
 #### Processing modes
 
-| Mode                     | Description                                                                        |
-|--------------------------|------------------------------------------------------------------------------------|
-| `NONE`                   | Display the raw value returned by the query                                        |
-| `DIFFERENCE`             | Per-second rate of change between successive results                               |
-| `CHANGE_PER_MIN`         | Per-minute rate of change between successive results                               |
-| `CHANGE_PER_HOUR`        | Per-hour rate of change between successive results                                 |
-| `CUMULATIVE_SINCE_START` | Total accumulated change from the value first observed when the dashboard launched |
+* `NONE` shows the value the query returns
+* `DIFFERENCE` shows the change per second between runs
+* `CHANGE_PER_MIN` shows the change per minute
+* `CHANGE_PER_HOUR` shows the change per hour
+* `CUMULATIVE_SINCE_START` shows how much the value has grown since the dashboard started
 
-All rate-based modes (`DIFFERENCE`, `CHANGE_PER_MIN`, `CHANGE_PER_HOUR`) emit 0 on the
-first execution to avoid spurious spikes when the dashboard starts. Negative deltas are
-clamped to 0 (counter resets are ignored).
+The three rate modes show 0 on the first run, otherwise you'd get a spike every time you start the dashboard. If a counter goes backwards (say after an instance restart) they show 0 rather than a negative number.
 
-`CUMULATIVE_SINCE_START` is useful for slow-moving counters where a rate would show 0
-most of the time. The baseline is the raw value at startup; the display shows how much
-the counter has grown since then.
+`CUMULATIVE_SINCE_START` is handy for counters that move so slowly a rate would sit at 0 most of the time.
 
-#### SQL result format
+#### What the SQL should return
 
-Each row returned by the SQL query represents one series or data point.
+Each row is one series (or one bar, slice, etc.). Return either two columns
 
-**Duplet** – two columns:
 ```sql
 SELECT 'label', value FROM ...
 ```
 
-**Triplet** – three columns (colour is the middle column):
+or three, with a colour in the middle
+
 ```sql
 SELECT 'label', 'colour', value FROM ...
 ```
 
-Use `UNION ALL` to return multiple series from a single query:
+To return several series from one query use `UNION ALL`
+
 ```sql
 SELECT 'Reads',  'green', sum(phyrds)  FROM v$filestat UNION ALL
 SELECT 'Writes', 'red',   sum(phywrts) FROM v$filestat
 ```
 
-Named colours: `red`, `blue`, `green`, `orange`, `yellow`, `cyan`, `pink`,
-`light green`, `light gray`, `dark red`, `gray brown`, etc.
+Colours can be names like `red`, `blue`, `green`, `orange`, `yellow`, `cyan`, `pink`, `light green`, `light gray`, `dark red`, `gray brown` and so on.
 
-### Editing the dashboard while it runs
+### Editing the dashboard while it's running
 
-You can add, edit and delete QModules without touching the YAML file:
+You don't need to edit the YAML by hand to change the layout.
 
-- **Right-click a module** and choose **Edit…** or **Delete…**. Delete asks you to confirm first.
-- **Add a module** with the **+** button in the header, or right-click an empty part of the dashboard and choose **Add QModule…**.
+* Right click a panel and pick **Edit...** or **Delete...** (it asks before deleting)
+* To add one, use the **+** button in the header or right click an empty bit of the dashboard and pick **Add QModule...**
 
-The Add/Edit dialog contains:
+The Add/Edit dialogue has three parts.
 
-- **Module:** title, chart type, processing mode, refresh rate, window size and divide-by. Tick **Default** to use the dashboard-wide value. You can also give a module its own database connection.
-- **Location:** a miniature of the dashboard. Grey cells are taken by other modules, green cells are free, and your selection is solid green. Click a free cell, or drag to span a rectangle of rows and columns; the selection stops at grey cells instead of overlapping them. There is always an empty row at the bottom (and below your selection), so you can drag down onto new rows.
-- **SQL:** a colour-coded editor. Press **Validate SQL** (or Cmd/Ctrl+Enter) to run the query once. The dialog checks the result has a layout the charts understand and shows a preview of the rows. **Add**/**Save** stays disabled until the SQL validates. Only `SELECT` / `WITH` queries are accepted, so validating can never change data.
+* **Module** for the title, chart type, processing mode, refresh rate, window size and divide by. Tick **Default** to use the dashboard wide value. A panel can also have its own database connection.
+* **Location** shows a small version of the dashboard. Grey cells are used by other panels and green ones are free. Click a cell, or drag out a rectangle to cover several rows and columns. There's always a spare row at the bottom so you can drag onto new rows.
+* **SQL** is where the query goes. Press **Validate SQL** (or Cmd/Ctrl+Enter) to run it once and see what comes back. You can't save until the query validates. Only `SELECT` and `WITH` statements are allowed, so validating can't change any data.
 
-Every change is saved to the configuration file straight away. The first save also keeps a copy of your original file as `datamonitor.yaml.bak`. That copy keeps your comments, which the saved file does not.
+Changes are written to the config file as soon as you make them. The first time this happens your original file is copied to `datamonitor.yaml.bak`, which is worth keeping because the saved file loses any comments.
 
 ## Running
 
-**Unix/macOS**
+macOS/Linux
+
 ```sh
 ./bin/datamonitor
 ```
 
-**Windows**
+Windows
+
 ```bat
-bin\datamonitor.bat
+winbin\datamonitor.bat
 ```
 
-The launcher passes `bin/datamonitor.yaml` automatically. To use a different config file:
+The scripts run from the `bin` directory and pick up `bin/datamonitor.yaml`. To use a different config pass `-c`. A relative path is read from `bin`, so it's simplest to give the full path
 
 ```sh
 ./bin/datamonitor -c /path/to/other.yaml
 ```
 
-The application JAR can also be started directly; it finds its dependencies in the same `lib/` folder:
+The scripts use Apache Commons Launcher, so JVM settings like the heap size (`-Xmx512m`) are in `launcher/launcher.xml`. You can also run the jar directly
 
 ```sh
-java -jar lib/new-data-monitor.jar -c bin/datamonitor.yaml
+java -jar lib/datamonitor.jar -c bin/datamonitor.yaml
 ```
 
-Other options: `--theme dark|light` overrides the configured theme, `--version` prints the version, `-h` shows help.
+Other options are `--theme dark|light` to override the theme, `--version` and `-h` for help.
 
-### Web front end
-
-Start the dashboard as a web application instead of a desktop window:
+### Web version
 
 ```sh
-./bin/datamonitor --web                    # http://127.0.0.1:8080
-./bin/datamonitor --web --port 9090
+./bin/datamonitorweb                  # http://127.0.0.1:8080
+./bin/datamonitorweb --port 9090
+winbin\datamonitorweb.bat             # Windows
 ```
 
-From a source checkout, the same with Ant:
+`datamonitorweb` is just `datamonitor --web`. From a source checkout you can use `ant run-web` (or `ant run-web -Dargs="--port 9090"`).
 
-```sh
-ant run-web
-ant run-web -Dargs="--port 9090"
-```
-
-On startup it tests the database connection, then prints a link such as:
+When it starts it checks it can connect to the database and then prints a link like
 
 ```
-http://127.0.0.1:8080/?token=Xy3…
+http://127.0.0.1:8080/?token=Xy3...
 ```
 
-Open that link in a browser. The `token` is a random access key created for each run. The browser remembers it for the session, and the dashboard and its API refuse requests without it. Each time you restart the server, use the new link it prints.
+Open that in your browser. The token is a random key generated each time the server starts, and nothing works without it, so use the new link after every restart.
 
-The web dashboard shows the same QModules as the desktop app, live and with the same dark/light themes. It also adds:
+It shows the same panels and themes as the desktop version, plus
 
-- hover tooltips on every chart, and a trend sparkline under each TEXT value
-- a **Show as table** view for any module
-- the same **Add / Edit / Delete** as the desktop app: right-click a module, use its **⋯** menu, use **+ Add** in the header, or click an empty space on the grid
-- live updates in every open browser: an edit made in one browser appears in all of them
+* tooltips on bar and pie charts as well as line and area charts
+* a **Show as table** option for any panel
+* add, edit and delete from the right click menu, the **...** menu on each panel, **+ Add** in the header, or by clicking an empty space in the grid
+* changes made in one browser show up in any other browser that has it open
 
-Edits are saved to the configuration file exactly as in the desktop app (with a `.bak` of the original on the first save).
+Edits are saved to the config file in the same way as the desktop version.
 
 | Option | Meaning |
 |---|---|
-| `--web` | Run the web front end instead of the desktop window |
+| `--web` | Run the web version instead of the desktop app |
 | `--port <n>` | Port to listen on (default `8080`) |
-| `--bind <address>` | Address to listen on. The default `127.0.0.1` means only this machine can connect. Use `0.0.0.0` to allow other machines. |
+| `--bind <address>` | Address to listen on. The default `127.0.0.1` only allows connections from this machine, `0.0.0.0` allows anyone |
 
-> **Security:** anyone with the link can view the dashboard, edit QModules and run `SELECT` queries using the dashboard's database account. Keep the default `--bind 127.0.0.1` unless you need remote access. The server uses plain HTTP, so for remote use put it behind an HTTPS reverse proxy or an SSH tunnel. Passwords are never sent to the browser, and only `SELECT` / `WITH` statements are accepted.
+A word of warning. Anyone with the link can see the dashboard, change the panels and run `SELECT` statements as the dashboard's database user. Unless you really need remote access leave `--bind` as it is. It's plain HTTP, so if you do open it up put it behind an HTTPS proxy or use an SSH tunnel. Passwords are never sent to the browser.
 
-### Database connection on the command line
+### Connection details on the command line
 
-The username, password and connect string can be given on the command line instead of, or as well as, `settings.connection`:
+You can pass the username, password and connect string on the command line instead of (or as well as) putting them in the config file.
 
 ```sh
 ./bin/datamonitor -u system -p welcome1 --connect-string //dbhost:1521/orclpdb
-./bin/datamonitor -p "$DB_PASSWORD"      # username and connect string still come from the YAML
+./bin/datamonitor -p "$DB_PASSWORD"      # username and connect string come from the YAML
 ```
 
-| Option | Overrides |
+| Option | Replaces |
 |---|---|
 | `-u`, `--username <user>` | `settings.connection.username` |
-| `-p`, `--password <password>` | `settings.connection.password` (plain text or `enc:<base64>`) |
+| `-p`, `--password <password>` | `settings.connection.password` (clear text or `enc(...)`) |
 | `--connect-string <connect>` | `settings.connection.connectString` |
 
-Each option is independent. A value given on the command line wins over the file for that run, and it is **never written to the configuration file**, even when you edit QModules. If all three are given, the YAML doesn't need a `connection` section at all. Modules with their own `connection:` are not affected.
+You can use any of them on their own. They only apply to that run and are never written to the config file, even if you edit the dashboard. If you give all three you don't need a `connection` section in the YAML at all. Panels with their own `connection:` aren't affected.
 
-> A password passed on the command line can be seen by other users of the machine (for example with `ps`) and may be saved in your shell history. Passing it from an environment variable, as in the second example, keeps it out of the history but not out of `ps`.
-
+Bear in mind that a password on the command line can be seen by other users with `ps` and will probably end up in your shell history. Using an environment variable like the second example keeps it out of the history, but not out of `ps`.

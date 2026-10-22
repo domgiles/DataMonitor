@@ -11,11 +11,11 @@
     <property name="res.dir"         value="src/main/resources"/>
     <property name="build.dir"       value="build"/>
     <property name="classes.dir"     value="${build.dir}/classes"/>
-    <property name="dist.dir"        value="${build.dir}/dist"/>
-    <property name="dist.app.dir"    value="${dist.dir}/datamonitor"/>
-    <property name="dist.lib.dir"    value="${dist.app.dir}/lib"/>
-    <property name="dist.bin.dir"    value="${dist.app.dir}/bin"/>
-    <property name="dist.log.dir"    value="${dist.app.dir}/log"/>
+    <property name="jar.file"        value="${build.dir}/datamonitor.jar"/>
+    <property name="jar.deps.dir"    value="${build.dir}/jar-deps"/>
+    <!-- Launcher scripts and config (src/dist) and the directory users get, zipped by 'zip' -->
+    <property name="dist.src.dir"    value="src/dist"/>
+    <property name="release.dir"     value="DataMonitor"/>
     <property name="docs.dir"        value="docs"/>
     <property name="lib.dir"         value="lib"/>
 
@@ -76,12 +76,12 @@
     <!-- ==================== Core Targets ==================== -->
     <target name="init">
         <mkdir dir="${classes.dir}"/>
-        <mkdir dir="${dist.dir}"/>
     </target>
 
     <target name="clean" description="Remove all generated files">
-        <delete dir="${build.dir}" quiet="true"/>
-        <delete dir="${docs.dir}"  quiet="true"/>
+        <delete dir="${build.dir}"   quiet="true"/>
+        <delete dir="${docs.dir}"    quiet="true"/>
+        <delete dir="${release.dir}" quiet="true"/>
     </target>
 
     <target name="compile" depends="init,resolve" description="Compile source code">
@@ -138,93 +138,64 @@
         </java>
     </target>
 
-    <target name="jar" depends="compile" description="Package application JAR">
-        <mkdir dir="${dist.lib.dir}"/>
-        <!-- Class-Path lists the runtime JARs by file name; dist copies them alongside this JAR,
-             so 'java -jar lib/new-data-monitor.jar' works without a launcher -->
-        <pathconvert property="jar.class.path" pathsep=" ">
+    <target name="jar" depends="compile" description="Package build/datamonitor.jar: the application and all its libraries in one JAR">
+        <!-- Unpack the runtime libraries so their manifests, signatures and module descriptors
+             can be left out (none is signed; only ojdbc17 has META-INF/services files, so
+             nothing clashes). SnakeYAML ships Java 9+ classes under META-INF/versions, hence
+             Multi-Release. -->
+        <delete dir="${jar.deps.dir}" quiet="true"/>
+        <unzip dest="${jar.deps.dir}" overwrite="true">
             <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
-            <flattenmapper/>
-        </pathconvert>
-        <jar destfile="${dist.lib.dir}/${project.name}.jar">
+            <patternset>
+                <exclude name="META-INF/MANIFEST.MF"/>
+                <exclude name="META-INF/*.SF"/>
+                <exclude name="META-INF/*.RSA"/>
+                <exclude name="META-INF/*.DSA"/>
+                <exclude name="META-INF/INDEX.LIST"/>
+                <exclude name="**/module-info.class"/>
+            </patternset>
+        </unzip>
+        <jar destfile="${jar.file}">
             <fileset dir="${classes.dir}"/>
+            <fileset dir="${jar.deps.dir}"/>
             <manifest>
                 <attribute name="Main-Class"             value="${main.class}"/>
-                <attribute name="Class-Path"             value="${jar.class.path}"/>
-                <attribute name="Implementation-Title"   value="${project.name}"/>
+                <attribute name="Multi-Release"          value="true"/>
+                <attribute name="Implementation-Title"   value="DataMonitor"/>
                 <attribute name="Implementation-Version" value="${project.version}"/>
             </manifest>
         </jar>
     </target>
 
-    <target name="dist" depends="clean,jar" description="Full distribution build">
-        <!-- Copy all runtime JARs into lib -->
-        <copy todir="${dist.lib.dir}" failonerror="false">
-            <fileset dir="${lib.dir}/compile" includes="*.jar" erroronmissingdir="false"/>
-            <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
+    <target name="dist" depends="clean,jar" description="Assemble the DataMonitor/ distribution directory">
+        <!-- bin/ and winbin/ scripts, launcher/ (Apache Commons Launcher) and lib/launcher/ -->
+        <copy todir="${release.dir}">
+            <fileset dir="${dist.src.dir}"/>
         </copy>
-
-        <!-- Create log directory placeholder -->
-        <mkdir dir="${dist.log.dir}"/>
-        <touch file="${dist.log.dir}/.gitkeep"/>
-
-        <!-- Create bin directory and launcher scripts -->
-        <mkdir dir="${dist.bin.dir}"/>
-
-        <echo file="${dist.bin.dir}/datamonitor">#!/bin/sh
-SCRIPT_DIR="$(cd "$(dirname "$0")" &amp;&amp; pwd)"
-APP_HOME="$(dirname "$SCRIPT_DIR")"
-
-exec java \
-    -Dawt.useSystemAAFontSettings=on \
-    -Dswing.aatext=true \
-    -Dlog.dir="${APP_HOME}/log" \
-    -cp "${APP_HOME}/lib/*" \
-    com.dom.datamonitor.DataMonitor \
-    -c "${SCRIPT_DIR}/datamonitor.yaml" \
-    "$@"
-</echo>
-
-        <echo file="${dist.bin.dir}/datamonitor.bat">@echo off
-set SCRIPT_DIR=%~dp0
-set APP_HOME=%SCRIPT_DIR%..
-
-java ^
-    -Dawt.useSystemAAFontSettings=on ^
-    -Dswing.aatext=true ^
-    -Dlog.dir="%APP_HOME%\log" ^
-    -cp "%APP_HOME%\lib\*" ^
-    com.dom.datamonitor.DataMonitor ^
-    -c "%SCRIPT_DIR%datamonitor.yaml" ^
-    %*
-</echo>
-
-        <!-- Make Unix launcher executable -->
-        <chmod file="${dist.bin.dir}/datamonitor" perm="755"/>
-
-        <!-- Copy sample config and README into bin alongside the launchers -->
-        <copy todir="${dist.bin.dir}" failonerror="false">
-            <fileset dir="${basedir}" includes="datamonitor.yaml"/>
-        </copy>
-        <copy file="${basedir}/README.md" todir="${dist.app.dir}" failonerror="false"/>
+        <copy file="${jar.file}"                   todir="${release.dir}/lib"/>
+        <copy file="${basedir}/datamonitor.yaml"   todir="${release.dir}/bin"/>
+        <copy file="${basedir}/README.md"          todir="${release.dir}"/>
+        <!-- copy does not keep file modes -->
+        <chmod dir="${release.dir}/bin" includes="datamonitor,datamonitorweb" perm="755"/>
 
         <echo message=""/>
-        <echo message="Distribution ready in ${dist.app.dir}/"/>
-        <echo message="  bin/datamonitor      – Unix/macOS launcher"/>
-        <echo message="  bin/datamonitor.bat  – Windows launcher"/>
-        <echo message="  bin/datamonitor.yaml – configuration (edit before running)"/>
-        <echo message="  lib/                 – application and dependency JARs"/>
-        <echo message="  log/                 – log output directory"/>
+        <echo message="Distribution ready in ${release.dir}/"/>
+        <echo message="  bin/datamonitor, bin/datamonitorweb       - macOS / Linux commands"/>
+        <echo message="  winbin/datamonitor.bat, datamonitorweb.bat - Windows commands"/>
+        <echo message="  bin/datamonitor.yaml                      - configuration (edit before running)"/>
+        <echo message="  lib/datamonitor.jar                       - the application and all its libraries"/>
+        <echo message="  launcher/, lib/launcher/                  - Apache Commons Launcher"/>
     </target>
 
-    <target name="zip" depends="dist" description="Create dated distribution zip (datamonitorDDMMYYYY.zip)">
+    <target name="zip" depends="dist" description="Zip DataMonitor/ as datamonitorDDMMYYYY.zip in the project root">
         <tstamp>
             <format property="dist.date" pattern="ddMMyyyy"/>
         </tstamp>
         <zip destfile="${basedir}/datamonitor${dist.date}.zip">
-            <zipfileset dir="${dist.dir}" includes="datamonitor/**"
-                        excludes="datamonitor/bin/datamonitor" filemode="644" dirmode="755"/>
-            <zipfileset dir="${dist.dir}" includes="datamonitor/bin/datamonitor" filemode="755"/>
+            <zipfileset dir="${release.dir}" prefix="DataMonitor"
+                        excludes="bin/datamonitor,bin/datamonitorweb" filemode="644" dirmode="755"/>
+            <zipfileset dir="${release.dir}" prefix="DataMonitor"
+                        includes="bin/datamonitor,bin/datamonitorweb" filemode="755"/>
         </zip>
         <echo message="Archive: ${basedir}/datamonitor${dist.date}.zip"/>
     </target>

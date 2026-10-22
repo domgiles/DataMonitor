@@ -117,6 +117,9 @@ class ConfigValidatorTest {
         config.getSettings().getConnection().setPassword("enc:not*base64!");
         assertTrue(errorsFor(config).contains("settings.connection.password starts with 'enc:'"));
 
+        config.getSettings().getConnection().setPassword("enc(bm90IGVuY3J5cHRlZCBieSB1cw)");
+        assertTrue(errorsFor(config).contains("settings.connection.password: encrypted password cannot be decrypted"));
+
         config.getSettings().getConnection().setPassword("enc:dGlnZXI=");
         assertDoesNotThrow(() -> new ConfigValidator().validate(config));
     }

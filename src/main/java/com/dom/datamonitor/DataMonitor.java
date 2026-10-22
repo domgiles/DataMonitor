@@ -5,6 +5,7 @@ import com.dom.datamonitor.config.ConfigException;
 import com.dom.datamonitor.config.ConfigLoader;
 import com.dom.datamonitor.config.ConfigValidator;
 import com.dom.datamonitor.config.ConfigWriter;
+import com.dom.datamonitor.config.PasswordCipher;
 import com.dom.datamonitor.db.ConnectionManager;
 import com.dom.datamonitor.engine.MonitorEngine;
 import com.dom.datamonitor.ui.DashboardFrame;
@@ -34,6 +35,7 @@ import java.util.logging.Logger;
  *   --web                Start the web front end instead of the desktop window
  *   --port &lt;n&gt;           Web port (default 8080)
  *   --bind &lt;address&gt;     Web listen address (default 127.0.0.1: this machine only)
+ *   --encrypt [password] Print the password encrypted for the config file, then exit
  *   -h, --help           Print this help and exit
  * </pre>
  */
@@ -91,6 +93,11 @@ public class DataMonitor {
                     if (i + 1 < args.length) bind = args[++i];
                     else die("Missing value for --bind");
                 }
+                case "--encrypt" -> {
+                    String plain = (i + 1 < args.length) ? args[++i] : readPassword();
+                    System.out.println(PasswordCipher.encrypt(plain));
+                    System.exit(0);
+                }
                 case "-h", "--help" -> { printUsage(); System.exit(0); }
                 case "--version"    -> { System.out.println("New Data Monitor " + APP_VERSION); System.exit(0); }
                 default -> System.err.println("Warning: unknown argument '" + args[i] + "'");
@@ -128,6 +135,16 @@ public class DataMonitor {
         }
 
         final File   configFile = new File(configPath);
+
+        // Passwords typed into the file by hand are encrypted there before anything else runs
+        try {
+            int n = ConfigWriter.encryptPlainPasswords(configFile);
+            if (n > 0) System.out.println("Encrypted " + n + " plain-text password" + (n == 1 ? "" : "s")
+                                          + " in " + configFile.getAbsolutePath());
+        } catch (IOException e) {
+            System.err.println("Warning: could not encrypt the passwords in " + configFile.getAbsolutePath()
+                               + ": " + e.getMessage() + ". They stay in plain text until it is writable.");
+        }
         final String themeName  = (themeOverride != null) ? themeOverride : config.getSettings().getTheme();
 
         if (web) {
@@ -218,6 +235,23 @@ public class DataMonitor {
         return -1;
     }
 
+    /** Reads a password from the terminal without echoing it. */
+    private static String readPassword() {
+        java.io.Console console = System.console();
+        if (console == null) fail("--encrypt needs a terminal to prompt for the password; or pass it: --encrypt <password>");
+        char[] first  = console.readPassword("Password: ");
+        char[] second = console.readPassword("Again:    ");
+        if (first == null || first.length == 0) fail("No password entered");
+        if (!java.util.Arrays.equals(first, second)) fail("The passwords do not match");
+        return new String(first);
+    }
+
+    /** Prints {@code msg} and exits, without the usage text {@link #die} adds. */
+    private static void fail(String msg) {
+        System.err.println("Error: " + msg);
+        System.exit(1);
+    }
+
     private static void printUsage() {
         System.out.println("""
             New Data Monitor - Oracle Database dashboard
@@ -230,12 +264,14 @@ public class DataMonitor {
               -c, --config <file>         YAML configuration file (default: datamonitor.yaml)
               --theme <dark|light>        Override theme setting from config
               -u, --username <user>       Database username
-              -p, --password <password>   Database password (plain, or enc:<base64>)
+              -p, --password <password>   Database password (plain, or enc(...))
               --connect-string <connect>  TNS alias or //host:port/service
               --web                       Start the web front end instead of the window
               --port <n>                  Web port (default 8080)
               --bind <address>            Web listen address (default 127.0.0.1, this
                                           machine only; 0.0.0.0 for all interfaces)
+              --encrypt [password]        Print the password encrypted for the config
+                                          file and exit; prompts when none is given
               --version                   Print version and exit
               -h, --help                  Show this help
 
@@ -244,6 +280,11 @@ public class DataMonitor {
             own, e.g. keep the password out of the file and pass it with -p.
             Note: a password on the command line is visible to other users of this
             machine (e.g. via 'ps') and may be kept in your shell history.
+
+            Passwords are never left in plain text: one typed into the config file is
+            encrypted there, as enc(...), when the file is loaded, and the editors
+            save them encrypted. 'datamonitor --encrypt' prints the enc(...) form of
+            a password, e.g. for a config you are preparing for someone else.
 
             --web prints a link containing a random access token; the web UI and its
             API only work for browsers that opened that link.
@@ -258,7 +299,7 @@ public class DataMonitor {
                 columns: 3              # 1-3 columns
                 connection:
                   username: admin
-                  password: mypassword  # or enc:<base64> for encoded passwords
+                  password: welcome1    # encrypted in the file, as enc(...), on first load
                   connectString: mydb_high
                   credentialsFile: /path/to/wallet  # ADB only
 

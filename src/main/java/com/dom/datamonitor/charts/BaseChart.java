@@ -9,7 +9,6 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -24,9 +23,10 @@ import java.util.Locale;
 /**
  * Abstract base for all chart/display components.
  *
- * <p>Implements double-buffered rendering via an off-screen {@link BufferedImage}
- * that is painted into a {@link BufferedImage} in {@link #paintChart(Graphics2D, int, int)}
- * and then blitted to the screen in {@link #paintComponent(Graphics)}.
+ * <p>Draws straight onto the component's {@link Graphics} in {@link #paintComponent(Graphics)}.
+ * Swing's own back buffer is already flicker-free and matches the screen's pixel density, so
+ * text and lines stay sharp on HiDPI (Retina) displays; an extra off-screen image at logical
+ * size would be stretched and look blurred.
  *
  * <p>Sub-classes must implement:
  * <ul>
@@ -133,9 +133,7 @@ public abstract class BaseChart extends JPanel {
         int h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        // Off-screen buffer for flicker-free rendering
-        BufferedImage buf = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D    g2  = buf.createGraphics();
+        Graphics2D g2 = (Graphics2D) g.create();
 
         applyRenderingHints(g2);
         g2.setColor(theme.chartBackground);
@@ -150,7 +148,6 @@ public abstract class BaseChart extends JPanel {
         }
 
         g2.dispose();
-        g.drawImage(buf, 0, 0, null);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

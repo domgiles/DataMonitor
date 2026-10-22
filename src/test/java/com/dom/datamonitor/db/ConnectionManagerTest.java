@@ -1,6 +1,7 @@
 package com.dom.datamonitor.db;
 
 import com.dom.datamonitor.config.ConnectionConfig;
+import com.dom.datamonitor.config.PasswordCipher;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
@@ -61,6 +62,7 @@ class ConnectionManagerTest {
         assertEquals("tiger", ConnectionManager.decodePassword("enc:dGlnZXI="));
         assertEquals("tiger", ConnectionManager.decodePassword("tiger"));
         assertEquals("",      ConnectionManager.decodePassword(null));
+        assertEquals("tiger", ConnectionManager.decodePassword(PasswordCipher.encrypt("tiger")));
     }
 
     private static ConnectionConfig conn(String password) {
