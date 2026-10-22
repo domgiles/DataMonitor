@@ -47,7 +47,8 @@ ant dist        # clean + jar, then assemble the DataMonitor/ distribution direc
 ant zip         # dist + dated archive datamonitorDDMMYYYY.zip (containing DataMonitor/) in the project root
 ant run         # Compile and launch from the build classpath (-Dconfig=<file> to pick a config)
 ant run-web     # Same, but starts the web front end (--web); prints the access link
-                #   extra flags for either: -Dargs="--port 9090 --theme light"
+ant run-cl      # Same, but the terminal dashboard (--cl); macOS / Linux only
+                #   extra flags for any of them: -Dargs="--theme light"
 ant docs        # Generate Javadoc in docs/
 ant clean       # Delete build/, docs/ and DataMonitor/
 ant all         # clean → compile → jar
@@ -83,12 +84,13 @@ ant run                                  # uses ./datamonitor.yaml
 ant run -Dconfig=/path/to/other.yaml
 ant run-web                              # web front end on http://127.0.0.1:8080
 ant run-web -Dargs="--port 9090"
+ant run-cl                               # terminal dashboard in this terminal (q quits)
 DataMonitor/bin/datamonitor              # after ant dist
 DataMonitor/bin/datamonitorweb --port 9090
 java -jar build/datamonitor.jar -c datamonitor.yaml
 ```
 
-CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--port <n>`, `--bind <address>`, `--encrypt [password]`, `--version`, `-h|--help`
+CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--cl`, `--port <n>`, `--bind <address>`, `--encrypt [password]`, `--version`, `-h|--help`
 
 `-u`, `-p` and `--connect-string` each override one field of `settings.connection` for the current run. They are stored separately (`Settings.overrideConnection`), and runtime code uses `Settings.getEffectiveConnection()`, which is the file's connection with the overrides on top. `ConfigWriter` saves `getConnection()` only, so command-line values never reach the YAML. `ConfigValidator` checks the effective connection, so a config without a `connection` section is valid when all three flags are given. Per-module connections are not overridden.
 
@@ -131,6 +133,8 @@ Git repository, branch `main`. `.gitignore` excludes `Old Version of the Applica
 | `com.google.code.gson:gson` | 2.11.0 | compile | JSON for the web REST API |
 | `org.webjars.npm:echarts` | 5.5.1 | compile | Apache ECharts for the web charts (served from the jar, works offline) |
 | `org.webjars.npm:codemirror` | 5.65.16 | compile | CodeMirror 5 SQL editor in the web dialog |
+| `dev.tamboui:tamboui-tui`, `tamboui-jline3-backend` | 0.6.0 | compile | Terminal front end (`--cl`): runner, layout, Block / Sparkline widgets (MIT; pre-1.0, API may change) |
+| `org.jline:jline` | 3.30.17 | compile | Terminal I/O under TamboUI; pinned (TamboUI asks for 3.25.1). JLine 4 needs Java 22 |
 | `org.junit.platform:junit-platform-console-standalone` | 1.11.4 | test | JUnit 5 (Jupiter API + engine + console launcher) |
 
 > **Note:** `osdt_core` and `osdt_cert` are **not** separate dependencies — they are bundled inside `ojdbc17` from Oracle 23ai onwards. Do not add them; they do not exist at 23.x on Maven Central.
@@ -161,7 +165,21 @@ src/main/java/com/dom/datamonitor/
 │   └── QueryResult.java                Immutable result; factory methods success/error
 │
 ├── engine/
-│   └── MonitorEngine.java              UI-independent runtime for the web mode: executors, rolling history, add/update/delete + save
+│   └── MonitorEngine.java              UI-independent runtime for the web and terminal modes: executors, rolling history, add/update/delete + save
+│
+├── tui/
+│   ├── TuiDashboard.java               --cl: TamboUI runner, header line, keys (quit/pause/theme/scroll), redraw on results
+│   ├── GridLayout.java                 Grid → terminal cells; rows scroll when shorter than MIN_ROW_HEIGHT
+│   ├── Panels.java                     One module: rounded border + badges; TEXT / BAR / TABLE; values list when a chart won't fit
+│   ├── Charts.java                     LINE (braille), stacked AREA and PIE donut (half-block pixels); legend, y ticks, times
+│   ├── BrailleCanvas.java              2 x 4 dots per cell, one colour per cell; Bresenham lines
+│   ├── PixelCanvas.java                2 pixels per cell via ▀ (fg = top, bg = bottom); roughly square pixels
+│   ├── BigText.java                    3x5 bitmap digits drawn at the largest block / half-block size that fits
+│   ├── TuiTheme.java                   Theme → terminal styles; terminal's own background and text colour kept
+│   └── TermColors.java                 java.awt.Color → 24-bit or nearest xterm-256 colour
+│
+├── util/
+│   └── NumberFormats.java              formatValue / formatCompact / niceTicks shared by Swing and the terminal (web rules)
 │
 ├── web/
 │   ├── WebServer.java                  JDK HttpServer: static files, /vendor WebJars, token auth, same-site check, routing
@@ -177,7 +195,7 @@ src/main/java/com/dom/datamonitor/
 ├── charts/
 │   ├── Theme.java                      Immutable colour+font palette; Theme.DARK / Theme.LIGHT
 │   ├── ColorPalette.java               Named colour map + hex + rgb() resolution; default rotating palette
-│   ├── BaseChart.java                  Abstract JPanel; double-buffered off-screen render; error/connecting state
+│   ├── BaseChart.java                  Abstract JPanel; draws at screen resolution (sharp on HiDPI); error/connecting state
 │   ├── LineChart.java                  Rolling time-series line chart with glow pass
 │   ├── AreaChart.java                  Stacked area chart with per-band gradient fill
 │   ├── BarChart.java                   Horizontal bar chart with RoundRectangle2D gradient bars
@@ -192,8 +210,6 @@ src/main/java/com/dom/datamonitor/
     ├── QModulePanel.java               Per-module container: TitleStrip (inner class) + BaseChart
     ├── QModuleDialog.java              Add/Edit dialog: settings form, location picker, SQL editor, validation
     └── GridPicker.java                 Miniature grid: grey = taken, green = free, solid green = selected
-
-(util/ exists but is currently empty.)
 
 src/main/resources/web/                 Web front end (no build step; plain ES modules)
 ├── index.html                          Shell, menus, dialogs
@@ -344,6 +360,17 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - **Charts:** ECharts for LINE (2px lines, 10% wash for a single series, end labels for 1–2 series), AREA (stacked, each band edged in a 40%-darker shade of its own colour, no edge for all-zero series, total in the tooltip), BAR (horizontal, ≤24px, rounded ends, value at the tip, one colour unless the SQL names colours) and PIE (donut, touching slices edged in a darker shade of their own colour, no edge on zero slices, total in the centre). TEXT tiles are DOM: a hero value, a signed ▲/▼ delta, a sparkline and the optional flash. TABLE is DOM. Every card has a table view.
 - **Colours:** SQL colour names are resolved server-side by the same `ColorPalette` the Swing charts use. Unnamed series use an 8-slot categorical palette in fixed order that was validated for colour-vision deficiency against both card surfaces. The Swing default palette failed that check, so the web version doesn't reuse it. A series keeps its slot for the card's lifetime.
 - **Browser theme:** the initial theme comes from the config (or `--theme`). The toggle is remembered per browser in `localStorage` and is never saved to the YAML.
+
+### Terminal front end (`--cl`)
+
+- Third front end on `MonitorEngine`, like the web mode. Read-only (engine created with no `ConfigWriter`).
+- TamboUI 0.6.0 on its JLine 3 backend. TamboUI's widgets take `long` values, so bars and big digits are drawn directly into the buffer; TamboUI supplies the runner, `Block` borders and `Sparkline`.
+- Engine threads only set a "changed" flag; the TamboUI thread redraws on its 250 ms tick from `engine.modules()` snapshots (plus extra ticks while a TEXT value is in its change colour).
+- Must run in a real terminal: `bin/datamonitor` and `datamonitor.bat` run `java -jar` directly when `--cl` (or `--encrypt`) is among the options, since Commons Launcher's child JVM has no TTY. `ant run-cl` runs it through `sh -c` with stdin/stdout/stderr reattached to `/dev/tty`, because Ant pipes a forked program's I/O; not available on Windows.
+- While running, java.util.logging and `System.err` go to `${java.io.tmpdir}/datamonitor-cl.log`, so nothing writes over the screen.
+- The jar manifest has `Enable-Native-Access: ALL-UNNAMED`: on Java 22+ JLine uses FFM, and without it the JVM prints a restricted-method warning over the dashboard.
+- All six chart types. LINE uses braille (a cell has one colour, so crossing lines take the last series' colour); AREA and PIE use half-block pixels so band and slice edges keep both colours. Parts drop as panels shrink (times, then legend); below `Charts.MIN_PLOT_*` a panel lists its values.
+- Not done yet: zooming one panel to full screen.
 
 ### Area chart colour fidelity
 

@@ -1,6 +1,6 @@
 # Data Monitor
 
-Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of panels (I call them QModules), each one runs a SQL query every few seconds and shows the result as a chart, a table or a single big number. It runs as a desktop app or in a browser.
+Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of panels (I call them QModules), each one runs a SQL query every few seconds and shows the result as a chart, a table or a single big number. It runs as a desktop app, in a browser or in a terminal.
 
 ![Data Monitor running against a database under load](screenshots/dashboard.png)
 
@@ -227,6 +227,39 @@ Edits are saved to the config file in the same way as the desktop version.
 | `--bind <address>` | Address to listen on. The default `127.0.0.1` only allows connections from this machine, `0.0.0.0` allows anyone |
 
 A word of warning. Anyone with the link can see the dashboard, change the panels and run `SELECT` statements as the dashboard's database user. Unless you really need remote access leave `--bind` as it is. It's plain HTTP, so if you do open it up put it behind an HTTPS proxy or use an SSH tunnel. Passwords are never sent to the browser.
+
+### Terminal version
+
+If you're on a server over SSH, or just prefer a terminal, the dashboard can be drawn with characters instead, a bit like btop.
+
+```sh
+./bin/datamonitor --cl
+winbin\datamonitor.bat --cl         # Windows, best in Windows Terminal
+```
+
+It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on). From a source checkout on macOS or Linux you can use `ant run-cl` (or `ant run-cl -Dargs="--theme light"`).
+
+It draws
+
+* TEXT panels as big digits, with a small trend line and the change since the last reading
+* LINE charts with braille dots, so they're fairly smooth, with the latest value at the end of each line
+* AREA charts stacked, like the other versions
+* BAR panels as horizontal bars
+* PIE panels as a donut with the total in the middle and each slice's share alongside
+* TABLE panels as tables
+
+The smaller the panel the less it shows: the times and legend go first, and a panel that's too small for its chart just lists the values.
+
+Keys
+
+* `q` or Esc to quit
+* `p` or space to pause the display (the queries keep running)
+* `t` to swap between the dark and light colours. It doesn't change the terminal's background, so pick whichever reads best
+* ↑ ↓ (or PgUp/PgDn) to scroll when the terminal is too short to show every row
+
+It's view only. To add or change panels use the desktop or web version, or edit the YAML. Anything that would normally be logged while it's running goes to `datamonitor-cl.log` in your temp directory instead, so it doesn't mess up the screen.
+
+It needs a real terminal, so it can't be run with its output redirected. A terminal at least 80x24 works, but bigger is better. Most modern terminals (iTerm2, Windows Terminal, the macOS Terminal, GNOME Terminal, PuTTY) are fine.
 
 ### Connection details on the command line
 

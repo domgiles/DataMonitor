@@ -2,8 +2,11 @@
 # Runs the datamonitor target in ../launcher/launcher.xml from this directory, so the
 # datamonitor.yaml next to this script is used unless -c names another file.
 cd "$(dirname "$0")"
-# --encrypt prompts for a password, which needs this terminal: the launcher's child JVM has none
-if [ "$1" = "--encrypt" ]; then
-    exec java -jar ../lib/datamonitor.jar "$@"
-fi
+# --cl draws on this terminal and --encrypt prompts in it, but the launcher's child JVM has
+# no terminal, so both run the jar directly
+for arg in "$@"; do
+    case "$arg" in
+        --cl|--encrypt) exec java -Xmx512m -jar ../lib/datamonitor.jar "$@" ;;
+    esac
+done
 exec java -cp ../launcher LauncherBootstrap -executablename datamonitor datamonitor "$@"

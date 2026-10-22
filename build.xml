@@ -140,9 +140,10 @@
 
     <target name="jar" depends="compile" description="Package build/datamonitor.jar: the application and all its libraries in one JAR">
         <!-- Unpack the runtime libraries so their manifests, signatures and module descriptors
-             can be left out (none is signed; only ojdbc17 has META-INF/services files, so
+             can be left out (none is signed, and no two share a META-INF/services file, so
              nothing clashes). SnakeYAML ships Java 9+ classes under META-INF/versions, hence
-             Multi-Release. -->
+             Multi-Release. Enable-Native-Access lets JLine use the terminal through the FFM API
+             on Java 22+ without the JVM printing a warning over the terminal dashboard. -->
         <delete dir="${jar.deps.dir}" quiet="true"/>
         <unzip dest="${jar.deps.dir}" overwrite="true">
             <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
@@ -161,6 +162,7 @@
             <manifest>
                 <attribute name="Main-Class"             value="${main.class}"/>
                 <attribute name="Multi-Release"          value="true"/>
+                <attribute name="Enable-Native-Access"   value="ALL-UNNAMED"/>
                 <attribute name="Implementation-Title"   value="DataMonitor"/>
                 <attribute name="Implementation-Version" value="${project.version}"/>
             </manifest>
@@ -221,6 +223,25 @@
             <arg value="--web"/>
             <arg line="${args}"/>
         </java>
+    </target>
+
+    <target name="run-cl" depends="compile" description="Run the dashboard in this terminal (macOS / Linux; q quits)">
+        <!-- Ant pipes a program's input and output, and the terminal dashboard needs the
+             terminal itself, so a shell reconnects it to /dev/tty. The values are passed as
+             positional parameters so paths with spaces survive. On Windows use
+             DataMonitor\winbin\datamonitor.bat with cl after ant dist. -->
+        <pathconvert property="run.cl.classpath" refid="runtime.classpath"/>
+        <condition property="windows"><os family="windows"/></condition>
+        <exec executable="sh" osfamily="unix" failonerror="true">
+            <arg value="-c"/>
+            <arg value="exec &quot;$0&quot; -Xmx512m --enable-native-access=ALL-UNNAMED -cp &quot;$1&quot; ${main.class} -c &quot;$2&quot; --cl $3 &lt;/dev/tty &gt;/dev/tty 2&gt;&amp;1"/>
+            <arg file="${java.home}/bin/java"/>
+            <arg value="${run.cl.classpath}"/>
+            <arg file="${config}"/>
+            <arg value="${args}"/>
+        </exec>
+        <echo message="Not available on Windows: run ant dist, then DataMonitor\winbin\datamonitor.bat --cl" level="warning"
+              if:set="windows" xmlns:if="ant:if"/>
     </target>
 
     <target name="docs" depends="compile" description="Generate JavaDoc">
