@@ -2,6 +2,8 @@
 
 Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of panels (I call them QModules), each one runs a SQL query every few seconds and shows the result as a chart, a table or a single big number. It runs as a desktop app or in a browser.
 
+![Data Monitor running against a database under load](screenshots/dashboard.png)
+
 ## Requirements
 
 * Java 17 or later
