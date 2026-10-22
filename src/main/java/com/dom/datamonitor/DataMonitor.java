@@ -20,11 +20,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Application entry point for the New Data Monitor.
+ * Application entry point for the Data Monitor.
  *
  * <h3>Usage</h3>
  * <pre>
- *   java -jar new-data-monitor.jar [-c &lt;config-file&gt;] [--theme dark|light]
+ *   java -jar lib/datamonitor.jar [-c &lt;config-file&gt;] [--theme dark|light]
  *        [-u &lt;user&gt;] [-p &lt;password&gt;] [--connect-string &lt;connect&gt;] [-h]
  *
  *   -c &lt;file&gt;            Path to the YAML configuration file (default: datamonitor.yaml)
@@ -99,13 +99,13 @@ public class DataMonitor {
                     System.exit(0);
                 }
                 case "-h", "--help" -> { printUsage(); System.exit(0); }
-                case "--version"    -> { System.out.println("New Data Monitor " + APP_VERSION); System.exit(0); }
+                case "--version"    -> { System.out.println("Data Monitor " + APP_VERSION); System.exit(0); }
                 default -> System.err.println("Warning: unknown argument '" + args[i] + "'");
             }
         }
 
         // Banner
-        System.out.println("New Data Monitor " + APP_VERSION);
+        System.out.println("Data Monitor " + APP_VERSION);
         System.out.println("Loading config: " + configPath);
 
         // Load and validate config
@@ -254,7 +254,7 @@ public class DataMonitor {
 
     private static void printUsage() {
         System.out.println("""
-            New Data Monitor - Oracle Database dashboard
+            Data Monitor - Oracle Database dashboard
 
             Usage:
               datamonitor [-c <config>] [--theme dark|light]

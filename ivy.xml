@@ -1,6 +1,6 @@
 <ivy-module version="2.0">
     <!-- No revision here: the version lives only in build.xml (project.version) -->
-    <info organisation="com.dom" module="new-data-monitor"/>
+    <info organisation="com.dom" module="datamonitor"/>
 
     <configurations>
         <conf name="compile"  description="Compile-time dependencies"/>

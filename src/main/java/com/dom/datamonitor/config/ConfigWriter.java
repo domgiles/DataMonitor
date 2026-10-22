@@ -111,7 +111,7 @@ public class ConfigWriter {
             backedUp = true;
         }
 
-        String header = "# Saved by New Data Monitor on "
+        String header = "# Saved by Data Monitor on "
             + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) + "\n"
             + "# The file as it was before the first save (with its comments) is "
             + backupPath().getFileName() + "\n\n";

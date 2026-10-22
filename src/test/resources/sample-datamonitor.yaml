@@ -1,7 +1,7 @@
 ## Fixed copy of the sample configuration for tests. datamonitor.yaml itself is edited
 ## (and re-saved) by the UI, so tests that depend on its layout read this file instead.
 ##
-## New Data Monitor - Sample Configuration
+## Data Monitor - Sample Configuration
 ##
 ## Grid spec format:
 ##   R<row>,C<col>       e.g. R1,C1    → row 1, column 1

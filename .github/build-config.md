@@ -1,4 +1,4 @@
-# New Data Monitor - Workspace Instructions
+# Data Monitor - Workspace Instructions
 
 ## Project Overview
 Java 17+ project using **Ant** and **Ivy** for build automation and dependency management. Focus on clean architecture, modular design, and Java 17+ language features.
@@ -76,7 +76,7 @@ ant all             # Full build: clean → compile → test → jar
 ### Build Script Patterns
 ```xml
 <!-- Define properties at top -->
-<property name="project.name" value="new-data-monitor"/>
+<property name="project.name" value="datamonitor"/>
 <property name="src.dir" value="src/main/java"/>
 <property name="build.dir" value="build"/>
 

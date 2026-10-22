@@ -57,7 +57,7 @@ class ConfigWriterTest {
 
         assertEquals("# hand-written comment\n", Files.readString(writer.backupPath()));
         String saved = Files.readString(file);
-        assertTrue(saved.startsWith("# Saved by New Data Monitor"), saved);
+        assertTrue(saved.startsWith("# Saved by Data Monitor"), saved);
         assertTrue(saved.contains("'b'"), saved);
         assertFalse(Files.exists(dir.resolve("dm.yaml.tmp")));
     }
