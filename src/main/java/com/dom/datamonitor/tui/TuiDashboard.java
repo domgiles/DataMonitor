@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The dashboard in a terminal ({@code --tui}): the same modules and grid as the desktop and
+ * The dashboard in a terminal ({@code --cl}): the same modules and grid as the desktop and
  * web versions, drawn with characters, read-only.
  *
  * <p>Keys: {@code q} / Esc quits, {@code p} / space pauses the display (queries keep running),

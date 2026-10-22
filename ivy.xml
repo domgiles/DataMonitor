@@ -71,7 +71,7 @@
                     conf="compile->default"/>
 
         <!--
-            Terminal front end (the tui option): TamboUI widgets and layout (MIT), drawn through JLine 3
+            Terminal front end (the cl option): TamboUI widgets and layout (MIT), drawn through JLine 3
             (BSD). JLine is pinned to the current 3.x release rather than the 3.25.1 TamboUI
             asks for: older releases have known problems on newer JDKs. JLine 4 needs Java 22.
         -->

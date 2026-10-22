@@ -34,7 +34,7 @@ import java.util.logging.Logger;
  *   -p, --password       Database password     } run only; never written to the config
  *   --connect-string     TNS alias or //host:port/service  }
  *   --web                Start the web front end instead of the desktop window
- *   --tui                Show the dashboard in this terminal instead of a window
+ *   --cl                 Show the dashboard in this terminal instead of a window
  *   --port &lt;n&gt;           Web port (default 8080)
  *   --bind &lt;address&gt;     Web listen address (default 127.0.0.1: this machine only)
  *   --encrypt [password] Print the password encrypted for the config file, then exit
@@ -61,7 +61,7 @@ public class DataMonitor {
         String  password      = null;
         String  connectString = null;
         boolean web           = false;
-        boolean tui           = false;
+        boolean cl            = false;
         int     port          = DEFAULT_PORT;
         String  bind          = DEFAULT_BIND;
 
@@ -88,7 +88,7 @@ public class DataMonitor {
                     else die("Missing value for --connect-string");
                 }
                 case "--web" -> web = true;
-                case "--tui" -> tui = true;
+                case "--cl" -> cl = true;
                 case "--port" -> {
                     if (i + 1 < args.length) port = parsePort(args[++i]);
                     else die("Missing value for --port");
@@ -151,13 +151,13 @@ public class DataMonitor {
         }
         final String themeName  = (themeOverride != null) ? themeOverride : config.getSettings().getTheme();
 
-        if (web && tui) die("Choose one of --web and --tui");
+        if (web && cl) die("Choose one of --web and --cl");
         if (web) {
             startWeb(config, configFile, themeName, bind, port);
             return;
         }
-        if (tui) {
-            startTui(config, themeName);
+        if (cl) {
+            startCommandLine(config, themeName);
             return;
         }
 
@@ -191,14 +191,14 @@ public class DataMonitor {
      * The dashboard in this terminal. Log output would scribble over the screen, so while it
      * runs, logging and anything written to stderr go to a file in the temp directory instead.
      */
-    private static void startTui(AppConfig config, String themeName) {
+    private static void startCommandLine(AppConfig config, String themeName) {
         System.setProperty("java.awt.headless", "true");
         if (System.console() == null) {
-            fail("--tui needs a terminal; it can't run with its output redirected or from the launcher's child JVM");
+            fail("--cl needs a terminal; it can't run with its output redirected or from the launcher's child JVM");
         }
         testConnectionOrExit(config);
 
-        File logFile = new File(System.getProperty("java.io.tmpdir"), "datamonitor-tui.log");
+        File logFile = new File(System.getProperty("java.io.tmpdir"), "datamonitor-cl.log");
         java.io.PrintStream console = System.err;
         java.util.logging.Logger root = java.util.logging.Logger.getLogger("");
         java.util.logging.Handler[] consoleHandlers = root.getHandlers();
@@ -224,7 +224,7 @@ public class DataMonitor {
             }
         } catch (Exception e) {
             System.err.println("The terminal dashboard stopped: " + e.getMessage());
-            log.log(Level.SEVERE, "TUI failure", e);
+            log.log(Level.SEVERE, "Terminal dashboard failure", e);
             System.exit(1);
         }
         if (logFile.length() > 0) System.out.println("Messages logged while the dashboard ran are in " + logFile);
@@ -324,7 +324,7 @@ public class DataMonitor {
               -p, --password <password>   Database password (plain, or enc(...))
               --connect-string <connect>  TNS alias or //host:port/service
               --web                       Start the web front end instead of the window
-              --tui                       Show the dashboard in this terminal (q quits)
+              --cl                        Show the dashboard in this terminal (q quits)
               --port <n>                  Web port (default 8080)
               --bind <address>            Web listen address (default 127.0.0.1, this
                                           machine only; 0.0.0.0 for all interfaces)

@@ -21,12 +21,10 @@ DataMonitor/
 ├── bin/
 │   ├── datamonitor          desktop version (macOS/Linux)
 │   ├── datamonitorweb       web version (macOS/Linux)
-│   ├── datamonitortui       terminal version (macOS/Linux)
 │   └── datamonitor.yaml     the config file
 ├── winbin/
 │   ├── datamonitor.bat      desktop version (Windows)
-│   ├── datamonitorweb.bat   web version (Windows)
-│   └── datamonitortui.bat   terminal version (Windows)
+│   └── datamonitorweb.bat   web version (Windows)
 ├── lib/
 │   ├── datamonitor.jar      the app and all of its libraries
 │   └── launcher/            used by the launcher, leave alone
@@ -36,7 +34,7 @@ DataMonitor/
 The scripts in `bin` should already be executable. If they aren't
 
 ```sh
-chmod +x bin/datamonitor bin/datamonitorweb bin/datamonitortui
+chmod +x bin/datamonitor bin/datamonitorweb
 ```
 
 ## Configuration
@@ -235,11 +233,11 @@ A word of warning. Anyone with the link can see the dashboard, change the panels
 If you're on a server over SSH, or just prefer a terminal, the dashboard can be drawn with characters instead, a bit like btop.
 
 ```sh
-./bin/datamonitortui
-winbin\datamonitortui.bat          # Windows, best in Windows Terminal
+./bin/datamonitor --cl
+winbin\datamonitor.bat --cl         # Windows, best in Windows Terminal
 ```
 
-`datamonitortui` is `datamonitor --tui`. It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on).
+It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on).
 
 At the moment it shows
 
@@ -256,7 +254,7 @@ Keys
 * `t` to swap between the dark and light colours. It doesn't change the terminal's background, so pick whichever reads best
 * ↑ ↓ (or PgUp/PgDn) to scroll when the terminal is too short to show every row
 
-It's view only. To add or change panels use the desktop or web version, or edit the YAML. Anything that would normally be logged while it's running goes to `datamonitor-tui.log` in your temp directory instead, so it doesn't mess up the screen.
+It's view only. To add or change panels use the desktop or web version, or edit the YAML. Anything that would normally be logged while it's running goes to `datamonitor-cl.log` in your temp directory instead, so it doesn't mess up the screen.
 
 It needs a real terminal, so it can't be run with its output redirected. A terminal at least 80x24 works, but bigger is better. Most modern terminals (iTerm2, Windows Terminal, the macOS Terminal, GNOME Terminal, PuTTY) are fine.
 

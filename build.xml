@@ -178,12 +178,12 @@
         <copy file="${basedir}/datamonitor.yaml"   todir="${release.dir}/bin"/>
         <copy file="${basedir}/README.md"          todir="${release.dir}"/>
         <!-- copy does not keep file modes -->
-        <chmod dir="${release.dir}/bin" includes="datamonitor,datamonitorweb,datamonitortui" perm="755"/>
+        <chmod dir="${release.dir}/bin" includes="datamonitor,datamonitorweb" perm="755"/>
 
         <echo message=""/>
         <echo message="Distribution ready in ${release.dir}/"/>
-        <echo message="  bin/datamonitor, datamonitorweb, datamonitortui - macOS / Linux commands"/>
-        <echo message="  winbin/datamonitor.bat, datamonitorweb.bat, datamonitortui.bat - Windows commands"/>
+        <echo message="  bin/datamonitor, bin/datamonitorweb       - macOS / Linux commands"/>
+        <echo message="  winbin/datamonitor.bat, datamonitorweb.bat - Windows commands"/>
         <echo message="  bin/datamonitor.yaml                      - configuration (edit before running)"/>
         <echo message="  lib/datamonitor.jar                       - the application and all its libraries"/>
         <echo message="  launcher/, lib/launcher/                  - Apache Commons Launcher"/>
@@ -195,9 +195,9 @@
         </tstamp>
         <zip destfile="${basedir}/datamonitor${dist.date}.zip">
             <zipfileset dir="${release.dir}" prefix="DataMonitor"
-                        excludes="bin/datamonitor,bin/datamonitorweb,bin/datamonitortui" filemode="644" dirmode="755"/>
+                        excludes="bin/datamonitor,bin/datamonitorweb" filemode="644" dirmode="755"/>
             <zipfileset dir="${release.dir}" prefix="DataMonitor"
-                        includes="bin/datamonitor,bin/datamonitorweb,bin/datamonitortui" filemode="755"/>
+                        includes="bin/datamonitor,bin/datamonitorweb" filemode="755"/>
         </zip>
         <echo message="Archive: ${basedir}/datamonitor${dist.date}.zip"/>
     </target>

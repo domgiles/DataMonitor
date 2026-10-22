@@ -88,7 +88,7 @@ DataMonitor/bin/datamonitorweb --port 9090
 java -jar build/datamonitor.jar -c datamonitor.yaml
 ```
 
-CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--tui`, `--port <n>`, `--bind <address>`, `--encrypt [password]`, `--version`, `-h|--help`
+CLI flags: `-c|--config <file>`, `--theme dark|light`, `-u|--username <user>`, `-p|--password <password>`, `--connect-string <connect>`, `--web`, `--cl`, `--port <n>`, `--bind <address>`, `--encrypt [password]`, `--version`, `-h|--help`
 
 `-u`, `-p` and `--connect-string` each override one field of `settings.connection` for the current run. They are stored separately (`Settings.overrideConnection`), and runtime code uses `Settings.getEffectiveConnection()`, which is the file's connection with the overrides on top. `ConfigWriter` saves `getConnection()` only, so command-line values never reach the YAML. `ConfigValidator` checks the effective connection, so a config without a `connection` section is valid when all three flags are given. Per-module connections are not overridden.
 
@@ -131,7 +131,7 @@ Git repository, branch `main`. `.gitignore` excludes `Old Version of the Applica
 | `com.google.code.gson:gson` | 2.11.0 | compile | JSON for the web REST API |
 | `org.webjars.npm:echarts` | 5.5.1 | compile | Apache ECharts for the web charts (served from the jar, works offline) |
 | `org.webjars.npm:codemirror` | 5.65.16 | compile | CodeMirror 5 SQL editor in the web dialog |
-| `dev.tamboui:tamboui-tui`, `tamboui-jline3-backend` | 0.6.0 | compile | Terminal front end (`--tui`): runner, layout, Block / Sparkline widgets (MIT; pre-1.0, API may change) |
+| `dev.tamboui:tamboui-tui`, `tamboui-jline3-backend` | 0.6.0 | compile | Terminal front end (`--cl`): runner, layout, Block / Sparkline widgets (MIT; pre-1.0, API may change) |
 | `org.jline:jline` | 3.30.17 | compile | Terminal I/O under TamboUI; pinned (TamboUI asks for 3.25.1). JLine 4 needs Java 22 |
 | `org.junit.platform:junit-platform-console-standalone` | 1.11.4 | test | JUnit 5 (Jupiter API + engine + console launcher) |
 
@@ -166,7 +166,7 @@ src/main/java/com/dom/datamonitor/
 │   └── MonitorEngine.java              UI-independent runtime for the web and terminal modes: executors, rolling history, add/update/delete + save
 │
 ├── tui/
-│   ├── TuiDashboard.java               --tui: TamboUI runner, header line, keys (quit/pause/theme/scroll), redraw on results
+│   ├── TuiDashboard.java               --cl: TamboUI runner, header line, keys (quit/pause/theme/scroll), redraw on results
 │   ├── GridLayout.java                 Grid → terminal cells; rows scroll when shorter than MIN_ROW_HEIGHT
 │   ├── Panels.java                     One module: rounded border + badges; TEXT / BAR / TABLE (values list for LINE/AREA/PIE)
 │   ├── BigText.java                    3x5 bitmap digits drawn at the largest block / half-block size that fits
@@ -356,13 +356,13 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - **Colours:** SQL colour names are resolved server-side by the same `ColorPalette` the Swing charts use. Unnamed series use an 8-slot categorical palette in fixed order that was validated for colour-vision deficiency against both card surfaces. The Swing default palette failed that check, so the web version doesn't reuse it. A series keeps its slot for the card's lifetime.
 - **Browser theme:** the initial theme comes from the config (or `--theme`). The toggle is remembered per browser in `localStorage` and is never saved to the YAML.
 
-### Terminal front end (`--tui`)
+### Terminal front end (`--cl`)
 
 - Third front end on `MonitorEngine`, like the web mode. Read-only (engine created with no `ConfigWriter`).
 - TamboUI 0.6.0 on its JLine 3 backend. TamboUI's widgets take `long` values, so bars and big digits are drawn directly into the buffer; TamboUI supplies the runner, `Block` borders and `Sparkline`.
 - Engine threads only set a "changed" flag; the TamboUI thread redraws on its 250 ms tick from `engine.modules()` snapshots (plus extra ticks while a TEXT value is in its change colour).
-- Must run in a real terminal: `bin/datamonitortui` runs `java -jar` directly (Commons Launcher's child JVM has no TTY, as with `--encrypt`). `ant` can't host it either (forked output is piped).
-- While running, java.util.logging and `System.err` go to `${java.io.tmpdir}/datamonitor-tui.log`, so nothing writes over the screen.
+- Must run in a real terminal: `bin/datamonitor` and `datamonitor.bat` run `java -jar` directly when `--cl` (or `--encrypt`) is among the options, since Commons Launcher's child JVM has no TTY. `ant` can't host it either (forked output is piped).
+- While running, java.util.logging and `System.err` go to `${java.io.tmpdir}/datamonitor-cl.log`, so nothing writes over the screen.
 - The jar manifest has `Enable-Native-Access: ALL-UNNAMED`: on Java 22+ JLine uses FFM, and without it the JVM prints a restricted-method warning over the dashboard.
 - Phase 1: TEXT, BAR, TABLE. LINE / AREA list latest values; PIE lists values with shares. Phase 2: braille LINE / AREA charts, zoom one panel.
 
