@@ -170,7 +170,10 @@ src/main/java/com/dom/datamonitor/
 ├── tui/
 │   ├── TuiDashboard.java               --cl: TamboUI runner, header line, keys (quit/pause/theme/scroll), redraw on results
 │   ├── GridLayout.java                 Grid → terminal cells; rows scroll when shorter than MIN_ROW_HEIGHT
-│   ├── Panels.java                     One module: rounded border + badges; TEXT / BAR / TABLE (values list for LINE/AREA/PIE)
+│   ├── Panels.java                     One module: rounded border + badges; TEXT / BAR / TABLE; values list when a chart won't fit
+│   ├── Charts.java                     LINE (braille), stacked AREA and PIE donut (half-block pixels); legend, y ticks, times
+│   ├── BrailleCanvas.java              2 x 4 dots per cell, one colour per cell; Bresenham lines
+│   ├── PixelCanvas.java                2 pixels per cell via ▀ (fg = top, bg = bottom); roughly square pixels
 │   ├── BigText.java                    3x5 bitmap digits drawn at the largest block / half-block size that fits
 │   ├── TuiTheme.java                   Theme → terminal styles; terminal's own background and text colour kept
 │   └── TermColors.java                 java.awt.Color → 24-bit or nearest xterm-256 colour
@@ -366,7 +369,8 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - Must run in a real terminal: `bin/datamonitor` and `datamonitor.bat` run `java -jar` directly when `--cl` (or `--encrypt`) is among the options, since Commons Launcher's child JVM has no TTY. `ant run-cl` runs it through `sh -c` with stdin/stdout/stderr reattached to `/dev/tty`, because Ant pipes a forked program's I/O; not available on Windows.
 - While running, java.util.logging and `System.err` go to `${java.io.tmpdir}/datamonitor-cl.log`, so nothing writes over the screen.
 - The jar manifest has `Enable-Native-Access: ALL-UNNAMED`: on Java 22+ JLine uses FFM, and without it the JVM prints a restricted-method warning over the dashboard.
-- Phase 1: TEXT, BAR, TABLE. LINE / AREA list latest values; PIE lists values with shares. Phase 2: braille LINE / AREA charts, zoom one panel.
+- All six chart types. LINE uses braille (a cell has one colour, so crossing lines take the last series' colour); AREA and PIE use half-block pixels so band and slice edges keep both colours. Parts drop as panels shrink (times, then legend); below `Charts.MIN_PLOT_*` a panel lists its values.
+- Not done yet: zooming one panel to full screen.
 
 ### Area chart colour fidelity
 

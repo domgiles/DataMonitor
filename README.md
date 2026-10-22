@@ -239,13 +239,16 @@ winbin\datamonitor.bat --cl         # Windows, best in Windows Terminal
 
 It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on). From a source checkout on macOS or Linux you can use `ant run-cl` (or `ant run-cl -Dargs="--theme light"`).
 
-At the moment it shows
+It draws
 
 * TEXT panels as big digits, with a small trend line and the change since the last reading
+* LINE charts with braille dots, so they're fairly smooth, with the latest value at the end of each line
+* AREA charts stacked, like the other versions
 * BAR panels as horizontal bars
+* PIE panels as a donut with the total in the middle and each slice's share alongside
 * TABLE panels as tables
 
-LINE and AREA panels show their latest values for now; the charts themselves are coming. PIE panels list each value with its share of the total.
+The smaller the panel the less it shows: the times and legend go first, and a panel that's too small for its chart just lists the values.
 
 Keys
 

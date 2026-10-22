@@ -31,8 +31,8 @@ import java.util.Locale;
  *       sparkline with the change since the last reading underneath.</li>
  *   <li>BAR: one horizontal bar per row, scaled to a round axis maximum like the web bars.</li>
  *   <li>TABLE: label / value rows with the series colour as a marker.</li>
- *   <li>LINE, AREA and PIE are not drawn as charts yet: their latest values are listed
- *       (PIE with each row's share of the total).</li>
+ *   <li>LINE, AREA and PIE: see {@link Charts}. A panel too small for its chart lists the
+ *       latest values instead (PIE with each row's share of the total).</li>
  * </ul>
  */
 final class Panels {
@@ -80,10 +80,11 @@ final class Panels {
             switch (type) {
                 case TEXT  -> text(m, history, inner, buf, ctx);
                 case BAR   -> bars(last.rows(), inner, buf, t);
-                case TABLE -> table(last.rows(), inner, buf, t, false, null);
-                case PIE   -> table(last.rows(), inner, buf, t, true, "Pie charts are listed as values here");
-                default    -> table(last.rows(), inner, buf, t, false,
-                                    "Charts are drawn in the desktop and web versions");
+                case TABLE -> table(last.rows(), inner, buf, t, false);
+                // Too small for a chart: list the values instead
+                case LINE  -> { if (!Charts.timeSeries(history, m.windowSize(), false, inner, buf, t)) table(last.rows(), inner, buf, t, false); }
+                case AREA  -> { if (!Charts.timeSeries(history, m.windowSize(), true,  inner, buf, t)) table(last.rows(), inner, buf, t, false); }
+                case PIE   -> { if (!Charts.pie(last.rows(), inner, buf, t)) table(last.rows(), inner, buf, t, true); }
             }
         }
     }
@@ -225,23 +226,17 @@ final class Panels {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // TABLE (and the values view for chart types not drawn yet)
+    // TABLE (and the values list for charts too small to draw)
 
-    private static void table(List<QueryRow> rows, Rect inner, Buffer buf, TuiTheme t,
-                              boolean percentages, String note) {
+    private static void table(List<QueryRow> rows, Rect inner, Buffer buf, TuiTheme t, boolean percentages) {
         int x = inner.x() + 1, width = inner.width() - 2;
         if (width < 4) return;
         int y = inner.y(), end = inner.bottom();
 
-        if (note != null && inner.height() > rows.size() + 2) {
-            buf.setString(x, y++, fit(note, width), t.muted.italic());
-        }
-        if (inner.height() > rows.size() + 1 || note == null) {
-            buf.setString(x, y, "METRIC", t.muted.bold());
-            String head = percentages ? "VALUE   SHARE" : "VALUE";
-            if (width > head.length() + 8) buf.setString(x + width - head.length(), y, head, t.muted.bold());
-            y++;
-        }
+        buf.setString(x, y, "METRIC", t.muted.bold());
+        String head = percentages ? "VALUE   SHARE" : "VALUE";
+        if (width > head.length() + 8) buf.setString(x + width - head.length(), y, head, t.muted.bold());
+        y++;
 
         double total = 0;
         for (QueryRow r : rows) total += Math.max(0, r.value());

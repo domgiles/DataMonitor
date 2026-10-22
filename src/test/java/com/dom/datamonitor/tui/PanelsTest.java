@@ -89,19 +89,15 @@ class PanelsTest {
     }
 
     @Test
-    void pieRowsShowTheirShareOfTheTotal() {
-        ModuleView m = module("Waits", "PIE", "R1,C1", "NONE", List.of(sample(NOW,
-            new QueryRow("User I/O", 30), new QueryRow("Commit", 10))));
-        String all = text(render(m, 50, 8, NOW));
-        assertTrue(all.contains("75.0%") && all.contains("25.0%"), all);
-    }
+    void chartsTooSmallToDrawListTheirValuesInstead() {
+        ModuleView line = module("Redo", "LINE", "R1,C1", "DIFFERENCE", List.of(sample(NOW, new QueryRow("Redo MB/sec", 1.37))));
+        String all = text(render(line, 14, 5, NOW));          // under MIN_PLOT_COLS once the axis is placed
+        assertTrue(all.contains("▬ Re") && all.contains("1.37"), all);
 
-    @Test
-    void lineChartsListTheirLatestValuesForNow() {
-        ModuleView m = module("Redo", "LINE", "R1,C1", "DIFFERENCE", List.of(sample(NOW, new QueryRow("Redo MB/sec", 1.37))));
-        String all = text(render(m, 60, 8, NOW));
-        assertTrue(all.contains("Redo MB/sec") && all.contains("1.37"), all);
-        assertTrue(all.contains("drawn in the desktop and web versions"), all);
+        ModuleView pie = module("Waits", "PIE", "R1,C1", "NONE", List.of(sample(NOW,
+            new QueryRow("User I/O", 30), new QueryRow("Commit", 10))));
+        String small = text(render(pie, 30, 5, NOW));
+        assertTrue(small.contains("75.0%") && small.contains("25.0%"), small);
     }
 
     @Test
