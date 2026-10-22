@@ -85,11 +85,12 @@ public final class PasswordCipher {
         try {
             byte[] in = Base64.getUrlDecoder().decode(
                 value.substring(PREFIX.length(), value.length() - SUFFIX.length()).trim());
-            if (in.length <= IV_BYTES) throw new IllegalArgumentException("too short");
+            // IV + tag at least; checked here because JDK 17 reports a short value as a ProviderException
+            if (in.length < IV_BYTES + TAG_BITS / 8) throw new IllegalArgumentException("too short");
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, KEY, new GCMParameterSpec(TAG_BITS, in, 0, IV_BYTES));
             return new String(cipher.doFinal(in, IV_BYTES, in.length - IV_BYTES), StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException | IllegalArgumentException e) {
+        } catch (GeneralSecurityException | RuntimeException e) {
             throw new IllegalArgumentException(
                 "encrypted password cannot be decrypted; re-enter it or create a new one with --encrypt", e);
         }
