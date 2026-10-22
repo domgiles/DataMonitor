@@ -3,7 +3,7 @@
 
     <!-- ==================== Project Properties ==================== -->
     <property name="project.name"    value="datamonitor"/>
-    <property name="project.version" value="1.0.1"/>
+    <property name="project.version" value="1.1.0"/>
     <property name="main.class"      value="com.dom.datamonitor.DataMonitor"/>
 
     <!-- Directory layout -->
