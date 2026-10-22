@@ -225,6 +225,25 @@
         </java>
     </target>
 
+    <target name="run-cl" depends="compile" description="Run the dashboard in this terminal (macOS / Linux; q quits)">
+        <!-- Ant pipes a program's input and output, and the terminal dashboard needs the
+             terminal itself, so a shell reconnects it to /dev/tty. The values are passed as
+             positional parameters so paths with spaces survive. On Windows use
+             DataMonitor\winbin\datamonitor.bat with cl after ant dist. -->
+        <pathconvert property="run.cl.classpath" refid="runtime.classpath"/>
+        <condition property="windows"><os family="windows"/></condition>
+        <exec executable="sh" osfamily="unix" failonerror="true">
+            <arg value="-c"/>
+            <arg value="exec &quot;$0&quot; -Xmx512m --enable-native-access=ALL-UNNAMED -cp &quot;$1&quot; ${main.class} -c &quot;$2&quot; --cl $3 &lt;/dev/tty &gt;/dev/tty 2&gt;&amp;1"/>
+            <arg file="${java.home}/bin/java"/>
+            <arg value="${run.cl.classpath}"/>
+            <arg file="${config}"/>
+            <arg value="${args}"/>
+        </exec>
+        <echo message="Not available on Windows: run ant dist, then DataMonitor\winbin\datamonitor.bat --cl" level="warning"
+              if:set="windows" xmlns:if="ant:if"/>
+    </target>
+
     <target name="docs" depends="compile" description="Generate JavaDoc">
         <mkdir dir="${docs.dir}"/>
         <javadoc sourcepath="${src.dir}"

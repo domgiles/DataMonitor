@@ -47,7 +47,8 @@ ant dist        # clean + jar, then assemble the DataMonitor/ distribution direc
 ant zip         # dist + dated archive datamonitorDDMMYYYY.zip (containing DataMonitor/) in the project root
 ant run         # Compile and launch from the build classpath (-Dconfig=<file> to pick a config)
 ant run-web     # Same, but starts the web front end (--web); prints the access link
-                #   extra flags for either: -Dargs="--port 9090 --theme light"
+ant run-cl      # Same, but the terminal dashboard (--cl); macOS / Linux only
+                #   extra flags for any of them: -Dargs="--theme light"
 ant docs        # Generate Javadoc in docs/
 ant clean       # Delete build/, docs/ and DataMonitor/
 ant all         # clean → compile → jar
@@ -83,6 +84,7 @@ ant run                                  # uses ./datamonitor.yaml
 ant run -Dconfig=/path/to/other.yaml
 ant run-web                              # web front end on http://127.0.0.1:8080
 ant run-web -Dargs="--port 9090"
+ant run-cl                               # terminal dashboard in this terminal (q quits)
 DataMonitor/bin/datamonitor              # after ant dist
 DataMonitor/bin/datamonitorweb --port 9090
 java -jar build/datamonitor.jar -c datamonitor.yaml
@@ -361,7 +363,7 @@ Also accepts: HTML hex codes (`#FF5733`), RGB notation (`rgb(255,87,51)`), or `j
 - Third front end on `MonitorEngine`, like the web mode. Read-only (engine created with no `ConfigWriter`).
 - TamboUI 0.6.0 on its JLine 3 backend. TamboUI's widgets take `long` values, so bars and big digits are drawn directly into the buffer; TamboUI supplies the runner, `Block` borders and `Sparkline`.
 - Engine threads only set a "changed" flag; the TamboUI thread redraws on its 250 ms tick from `engine.modules()` snapshots (plus extra ticks while a TEXT value is in its change colour).
-- Must run in a real terminal: `bin/datamonitor` and `datamonitor.bat` run `java -jar` directly when `--cl` (or `--encrypt`) is among the options, since Commons Launcher's child JVM has no TTY. `ant` can't host it either (forked output is piped).
+- Must run in a real terminal: `bin/datamonitor` and `datamonitor.bat` run `java -jar` directly when `--cl` (or `--encrypt`) is among the options, since Commons Launcher's child JVM has no TTY. `ant run-cl` runs it through `sh -c` with stdin/stdout/stderr reattached to `/dev/tty`, because Ant pipes a forked program's I/O; not available on Windows.
 - While running, java.util.logging and `System.err` go to `${java.io.tmpdir}/datamonitor-cl.log`, so nothing writes over the screen.
 - The jar manifest has `Enable-Native-Access: ALL-UNNAMED`: on Java 22+ JLine uses FFM, and without it the JVM prints a restricted-method warning over the dashboard.
 - Phase 1: TEXT, BAR, TABLE. LINE / AREA list latest values; PIE lists values with shares. Phase 2: braille LINE / AREA charts, zoom one panel.

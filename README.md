@@ -237,7 +237,7 @@ If you're on a server over SSH, or just prefer a terminal, the dashboard can be 
 winbin\datamonitor.bat --cl         # Windows, best in Windows Terminal
 ```
 
-It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on).
+It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on). From a source checkout on macOS or Linux you can use `ant run-cl` (or `ant run-cl -Dargs="--theme light"`).
 
 At the moment it shows
 
