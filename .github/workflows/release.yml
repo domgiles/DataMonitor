@@ -1,0 +1,93 @@
+# Builds the DataMonitor download and publishes it as a GitHub release.
+#
+#   push to main      -> rebuilds the "latest" pre-release (tag: latest), replacing the previous one
+#   push a v* tag     -> a stable release named after the tag, marked as the repository's Latest
+#                        e.g.  git tag v1.1.0 && git push origin v1.1.0
+#
+# Both run the tests first; a failing test means no release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One release job at a time per ref, so two quick pushes can't fight over the "latest" release
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Ant
+        run: sudo apt-get update -q && sudo apt-get install -y -q ant
+
+      - name: Cache Ivy downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ivy
+          key: ivy-${{ hashFiles('ivy.xml', 'ivy-settings.xml') }}
+          restore-keys: ivy-
+
+      - name: Work out the version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            echo "kind=stable" >> "$GITHUB_OUTPUT"
+            echo "asset=datamonitor-${version}.zip" >> "$GITHUB_OUTPUT"
+          else
+            version="latest-${GITHUB_SHA::7}"
+            echo "kind=latest" >> "$GITHUB_OUTPUT"
+            echo "asset=datamonitor-latest.zip" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${version}"
+
+      - name: Test
+        run: ant -noinput test
+
+      - name: Build the zip
+        run: |
+          ant -noinput -Dproject.version="${{ steps.version.outputs.version }}" zip
+          mv datamonitor*.zip "${{ steps.version.outputs.asset }}"
+          unzip -l "${{ steps.version.outputs.asset }}" | tail -1
+
+      - name: Publish the latest build
+        if: steps.version.outputs.kind == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Replace last time's release and move the tag to this commit
+          gh release delete latest --cleanup-tag --yes || true
+          git push origin :refs/tags/latest || true
+          gh release create latest "${{ steps.version.outputs.asset }}" \
+            --target "$GITHUB_SHA" \
+            --prerelease --latest=false \
+            --title "Latest build (${GITHUB_SHA::7})" \
+            --notes "Built automatically from \`main\` at ${GITHUB_SHA::7} on $(date -u '+%Y-%m-%d %H:%M') UTC. This is the newest code and hasn't been through a stable release yet; for that, use the release marked **Latest**."
+
+      - name: Publish the stable release
+        if: steps.version.outputs.kind == 'stable'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "${{ steps.version.outputs.asset }}" \
+            --verify-tag --latest \
+            --title "Data Monitor ${{ steps.version.outputs.version }}" \
+            --generate-notes

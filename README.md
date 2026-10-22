@@ -12,7 +12,9 @@ Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of pa
 
 ## Installation
 
-Unzip the download. You'll get this:
+Download the zip from the [Releases](https://github.com/domgiles/DataMonitor/releases) page. The release marked **Latest** is the current stable version. There's also a **Latest build** pre-release, which is rebuilt every time the code changes, if you want the newest features and don't mind the odd rough edge.
+
+Unzip it and you'll get this:
 
 ```
 DataMonitor/
