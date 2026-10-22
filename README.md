@@ -1,6 +1,6 @@
 # Data Monitor
 
-Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of panels (I call them QModules), each one runs a SQL query every few seconds and shows the result as a chart, a table or a single big number. It runs as a desktop app or in a browser.
+Data Monitor is a simple dashboard for Oracle Database. You lay out a grid of panels (I call them QModules), each one runs a SQL query every few seconds and shows the result as a chart, a table or a single big number. It runs as a desktop app, in a browser or in a terminal.
 
 ![Data Monitor running against a database under load](screenshots/dashboard.png)
 
@@ -21,10 +21,12 @@ DataMonitor/
 ├── bin/
 │   ├── datamonitor          desktop version (macOS/Linux)
 │   ├── datamonitorweb       web version (macOS/Linux)
+│   ├── datamonitortui       terminal version (macOS/Linux)
 │   └── datamonitor.yaml     the config file
 ├── winbin/
 │   ├── datamonitor.bat      desktop version (Windows)
-│   └── datamonitorweb.bat   web version (Windows)
+│   ├── datamonitorweb.bat   web version (Windows)
+│   └── datamonitortui.bat   terminal version (Windows)
 ├── lib/
 │   ├── datamonitor.jar      the app and all of its libraries
 │   └── launcher/            used by the launcher, leave alone
@@ -34,7 +36,7 @@ DataMonitor/
 The scripts in `bin` should already be executable. If they aren't
 
 ```sh
-chmod +x bin/datamonitor bin/datamonitorweb
+chmod +x bin/datamonitor bin/datamonitorweb bin/datamonitortui
 ```
 
 ## Configuration
@@ -227,6 +229,36 @@ Edits are saved to the config file in the same way as the desktop version.
 | `--bind <address>` | Address to listen on. The default `127.0.0.1` only allows connections from this machine, `0.0.0.0` allows anyone |
 
 A word of warning. Anyone with the link can see the dashboard, change the panels and run `SELECT` statements as the dashboard's database user. Unless you really need remote access leave `--bind` as it is. It's plain HTTP, so if you do open it up put it behind an HTTPS proxy or use an SSH tunnel. Passwords are never sent to the browser.
+
+### Terminal version
+
+If you're on a server over SSH, or just prefer a terminal, the dashboard can be drawn with characters instead, a bit like btop.
+
+```sh
+./bin/datamonitortui
+winbin\datamonitortui.bat          # Windows, best in Windows Terminal
+```
+
+`datamonitortui` is `datamonitor --tui`. It uses the same config file and the same grid as the other versions, and takes the same options (`-c`, `--theme`, `-u`, `-p` and so on).
+
+At the moment it shows
+
+* TEXT panels as big digits, with a small trend line and the change since the last reading
+* BAR panels as horizontal bars
+* TABLE panels as tables
+
+LINE and AREA panels show their latest values for now; the charts themselves are coming. PIE panels list each value with its share of the total.
+
+Keys
+
+* `q` or Esc to quit
+* `p` or space to pause the display (the queries keep running)
+* `t` to swap between the dark and light colours. It doesn't change the terminal's background, so pick whichever reads best
+* ↑ ↓ (or PgUp/PgDn) to scroll when the terminal is too short to show every row
+
+It's view only. To add or change panels use the desktop or web version, or edit the YAML. Anything that would normally be logged while it's running goes to `datamonitor-tui.log` in your temp directory instead, so it doesn't mess up the screen.
+
+It needs a real terminal, so it can't be run with its output redirected. A terminal at least 80x24 works, but bigger is better. Most modern terminals (iTerm2, Windows Terminal, the macOS Terminal, GNOME Terminal, PuTTY) are fine.
 
 ### Connection details on the command line
 

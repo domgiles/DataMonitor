@@ -70,10 +70,29 @@
                     transitive="false"
                     conf="compile->default"/>
 
+        <!--
+            Terminal front end (the tui option): TamboUI widgets and layout (MIT), drawn through JLine 3
+            (BSD). JLine is pinned to the current 3.x release rather than the 3.25.1 TamboUI
+            asks for: older releases have known problems on newer JDKs. JLine 4 needs Java 22.
+        -->
+        <dependency org="dev.tamboui"
+                    name="tamboui-tui"
+                    rev="0.6.0"
+                    conf="compile->default"/>
+        <dependency org="dev.tamboui"
+                    name="tamboui-jline3-backend"
+                    rev="0.6.0"
+                    conf="compile->default"/>
+        <dependency org="org.jline"
+                    name="jline"
+                    rev="3.30.17"
+                    conf="compile->default"/>
+
         <!-- JUnit 5: the console-standalone JAR bundles Jupiter API/engine and the launcher -->
         <dependency org="org.junit.platform"
                     name="junit-platform-console-standalone"
                     rev="1.11.4"
                     conf="test->default"/>
+        <override org="org.jline" module="jline" rev="3.30.17"/>
     </dependencies>
 </ivy-module>

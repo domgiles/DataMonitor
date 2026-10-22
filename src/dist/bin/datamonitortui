@@ -1,0 +1,6 @@
+#!/bin/sh
+# Shows the dashboard in this terminal (q quits). Runs the jar directly rather than through
+# the launcher, whose child JVM has no terminal to draw on. Runs from this directory, so the
+# datamonitor.yaml next to this script is used unless -c names another file.
+cd "$(dirname "$0")"
+exec java -Xmx512m -jar ../lib/datamonitor.jar --tui "$@"

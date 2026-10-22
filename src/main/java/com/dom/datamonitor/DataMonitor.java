@@ -8,6 +8,7 @@ import com.dom.datamonitor.config.ConfigWriter;
 import com.dom.datamonitor.config.PasswordCipher;
 import com.dom.datamonitor.db.ConnectionManager;
 import com.dom.datamonitor.engine.MonitorEngine;
+import com.dom.datamonitor.tui.TuiDashboard;
 import com.dom.datamonitor.ui.DashboardFrame;
 import com.dom.datamonitor.web.WebServer;
 
@@ -33,6 +34,7 @@ import java.util.logging.Logger;
  *   -p, --password       Database password     } run only; never written to the config
  *   --connect-string     TNS alias or //host:port/service  }
  *   --web                Start the web front end instead of the desktop window
+ *   --tui                Show the dashboard in this terminal instead of a window
  *   --port &lt;n&gt;           Web port (default 8080)
  *   --bind &lt;address&gt;     Web listen address (default 127.0.0.1: this machine only)
  *   --encrypt [password] Print the password encrypted for the config file, then exit
@@ -59,6 +61,7 @@ public class DataMonitor {
         String  password      = null;
         String  connectString = null;
         boolean web           = false;
+        boolean tui           = false;
         int     port          = DEFAULT_PORT;
         String  bind          = DEFAULT_BIND;
 
@@ -85,6 +88,7 @@ public class DataMonitor {
                     else die("Missing value for --connect-string");
                 }
                 case "--web" -> web = true;
+                case "--tui" -> tui = true;
                 case "--port" -> {
                     if (i + 1 < args.length) port = parsePort(args[++i]);
                     else die("Missing value for --port");
@@ -147,8 +151,13 @@ public class DataMonitor {
         }
         final String themeName  = (themeOverride != null) ? themeOverride : config.getSettings().getTheme();
 
+        if (web && tui) die("Choose one of --web and --tui");
         if (web) {
             startWeb(config, configFile, themeName, bind, port);
+            return;
+        }
+        if (tui) {
+            startTui(config, themeName);
             return;
         }
 
@@ -178,21 +187,69 @@ public class DataMonitor {
      * Runs the dashboard headless and serves the web front end until the process is stopped.
      * Like the desktop app, it tests the connection first and exits if the database is unreachable.
      */
+    /**
+     * The dashboard in this terminal. Log output would scribble over the screen, so while it
+     * runs, logging and anything written to stderr go to a file in the temp directory instead.
+     */
+    private static void startTui(AppConfig config, String themeName) {
+        System.setProperty("java.awt.headless", "true");
+        if (System.console() == null) {
+            fail("--tui needs a terminal; it can't run with its output redirected or from the launcher's child JVM");
+        }
+        testConnectionOrExit(config);
+
+        File logFile = new File(System.getProperty("java.io.tmpdir"), "datamonitor-tui.log");
+        java.io.PrintStream console = System.err;
+        java.util.logging.Logger root = java.util.logging.Logger.getLogger("");
+        java.util.logging.Handler[] consoleHandlers = root.getHandlers();
+        try (java.io.PrintStream logStream = new java.io.PrintStream(new java.io.FileOutputStream(logFile), true)) {
+            for (java.util.logging.Handler h : consoleHandlers) root.removeHandler(h);
+            java.util.logging.StreamHandler fileHandler =
+                new java.util.logging.StreamHandler(logStream, new java.util.logging.SimpleFormatter()) {
+                    @Override public synchronized void publish(java.util.logging.LogRecord r) { super.publish(r); flush(); }
+                };
+            root.addHandler(fileHandler);
+            System.setErr(logStream);
+
+            MonitorEngine engine = new MonitorEngine(config, null);   // read-only: nothing is saved
+            engine.start();
+            try {
+                new TuiDashboard(engine, themeName, String.valueOf(config.getSettings().getEffectiveConnection())).run();
+            } finally {
+                engine.stop();
+                ConnectionManager.getInstance().close();
+                root.removeHandler(fileHandler);
+                for (java.util.logging.Handler h : consoleHandlers) root.addHandler(h);
+                System.setErr(console);
+            }
+        } catch (Exception e) {
+            System.err.println("The terminal dashboard stopped: " + e.getMessage());
+            log.log(Level.SEVERE, "TUI failure", e);
+            System.exit(1);
+        }
+        if (logFile.length() > 0) System.out.println("Messages logged while the dashboard ran are in " + logFile);
+        System.exit(0);
+    }
+
+    /** Checks the dashboard connection before starting, so a wrong password gives a plain message. */
+    private static void testConnectionOrExit(AppConfig config) {
+        if (config.getSettings().getEffectiveConnection() == null) return;
+        System.out.println("Testing connection…");
+        try {
+            ConnectionManager.getInstance().testConnection(config.getSettings().getEffectiveConnection());
+        } catch (Exception e) {
+            System.err.println("\nCannot connect to Oracle database:\n  " + e.getMessage()
+                + "\n\nCheck settings.connection in your config file"
+                + " and any --username / --password / --connect-string options.\n");
+            ConnectionManager.getInstance().close();
+            System.exit(1);
+        }
+    }
+
     private static void startWeb(AppConfig config, File configFile, String themeName, String bind, int port) {
         System.setProperty("java.awt.headless", "true");
 
-        if (config.getSettings().getEffectiveConnection() != null) {
-            System.out.println("Testing connection…");
-            try {
-                ConnectionManager.getInstance().testConnection(config.getSettings().getEffectiveConnection());
-            } catch (Exception e) {
-                System.err.println("\nCannot connect to Oracle database:\n  " + e.getMessage()
-                    + "\n\nCheck settings.connection in your config file"
-                    + " and any --username / --password / --connect-string options.\n");
-                ConnectionManager.getInstance().close();
-                System.exit(1);
-            }
-        }
+        testConnectionOrExit(config);
 
         MonitorEngine engine = new MonitorEngine(config, new ConfigWriter(configFile));
         WebServer server;
@@ -267,6 +324,7 @@ public class DataMonitor {
               -p, --password <password>   Database password (plain, or enc(...))
               --connect-string <connect>  TNS alias or //host:port/service
               --web                       Start the web front end instead of the window
+              --tui                       Show the dashboard in this terminal (q quits)
               --port <n>                  Web port (default 8080)
               --bind <address>            Web listen address (default 127.0.0.1, this
                                           machine only; 0.0.0.0 for all interfaces)

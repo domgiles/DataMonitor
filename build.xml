@@ -140,9 +140,10 @@
 
     <target name="jar" depends="compile" description="Package build/datamonitor.jar: the application and all its libraries in one JAR">
         <!-- Unpack the runtime libraries so their manifests, signatures and module descriptors
-             can be left out (none is signed; only ojdbc17 has META-INF/services files, so
+             can be left out (none is signed, and no two share a META-INF/services file, so
              nothing clashes). SnakeYAML ships Java 9+ classes under META-INF/versions, hence
-             Multi-Release. -->
+             Multi-Release. Enable-Native-Access lets JLine use the terminal through the FFM API
+             on Java 22+ without the JVM printing a warning over the terminal dashboard. -->
         <delete dir="${jar.deps.dir}" quiet="true"/>
         <unzip dest="${jar.deps.dir}" overwrite="true">
             <fileset dir="${lib.dir}/runtime" includes="*.jar" erroronmissingdir="false"/>
@@ -161,6 +162,7 @@
             <manifest>
                 <attribute name="Main-Class"             value="${main.class}"/>
                 <attribute name="Multi-Release"          value="true"/>
+                <attribute name="Enable-Native-Access"   value="ALL-UNNAMED"/>
                 <attribute name="Implementation-Title"   value="DataMonitor"/>
                 <attribute name="Implementation-Version" value="${project.version}"/>
             </manifest>
@@ -176,12 +178,12 @@
         <copy file="${basedir}/datamonitor.yaml"   todir="${release.dir}/bin"/>
         <copy file="${basedir}/README.md"          todir="${release.dir}"/>
         <!-- copy does not keep file modes -->
-        <chmod dir="${release.dir}/bin" includes="datamonitor,datamonitorweb" perm="755"/>
+        <chmod dir="${release.dir}/bin" includes="datamonitor,datamonitorweb,datamonitortui" perm="755"/>
 
         <echo message=""/>
         <echo message="Distribution ready in ${release.dir}/"/>
-        <echo message="  bin/datamonitor, bin/datamonitorweb       - macOS / Linux commands"/>
-        <echo message="  winbin/datamonitor.bat, datamonitorweb.bat - Windows commands"/>
+        <echo message="  bin/datamonitor, datamonitorweb, datamonitortui - macOS / Linux commands"/>
+        <echo message="  winbin/datamonitor.bat, datamonitorweb.bat, datamonitortui.bat - Windows commands"/>
         <echo message="  bin/datamonitor.yaml                      - configuration (edit before running)"/>
         <echo message="  lib/datamonitor.jar                       - the application and all its libraries"/>
         <echo message="  launcher/, lib/launcher/                  - Apache Commons Launcher"/>
@@ -193,9 +195,9 @@
         </tstamp>
         <zip destfile="${basedir}/datamonitor${dist.date}.zip">
             <zipfileset dir="${release.dir}" prefix="DataMonitor"
-                        excludes="bin/datamonitor,bin/datamonitorweb" filemode="644" dirmode="755"/>
+                        excludes="bin/datamonitor,bin/datamonitorweb,bin/datamonitortui" filemode="644" dirmode="755"/>
             <zipfileset dir="${release.dir}" prefix="DataMonitor"
-                        includes="bin/datamonitor,bin/datamonitorweb" filemode="755"/>
+                        includes="bin/datamonitor,bin/datamonitorweb,bin/datamonitortui" filemode="755"/>
         </zip>
         <echo message="Archive: ${basedir}/datamonitor${dist.date}.zip"/>
     </target>
